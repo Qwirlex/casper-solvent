@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solvent &mdash; autonomous fund on Casper</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ===== Header ===== */
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 24px 32px;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #e6edf3;
+      letter-spacing: -0.3px;
+      margin-bottom: 6px;
+    }
+
+    header h1 span {
+      color: #58a6ff;
+    }
+
+    header p {
+      font-size: 0.95rem;
+      color: #8b949e;
+      max-width: 600px;
+    }
+
+    .network-badge {
+      display: inline-block;
+      margin-top: 10px;
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 0.75rem;
+      color: #9ca3af;
+      letter-spacing: 0.3px;
+    }
+
+    /* ===== Main layout ===== */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    section { margin-bottom: 40px; }
+
+    .section-heading {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #e6edf3;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3fb950;
+      animation: pulse 2s infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ===== Current State Panel ===== */
+    #current-state {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 24px;
+    }
+
+    .stat-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 150px;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #8b949e;
+    }
+
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #e6edf3;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ===== Allocation bars ===== */
+    .alloc-section { margin-top: 8px; }
+
+    .alloc-bars {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .alloc-bar-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alloc-bar {
+      height: 18px;
+      border-radius: 4px;
+      min-width: 4px;
+      transition: width 0.6s ease;
+    }
+
+    .alloc-bar.conservative { background: #388bfd; }
+    .alloc-bar.growth { background: #3fb950; }
+
+    .alloc-label {
+      font-size: 0.85rem;
+      color: #8b949e;
+      white-space: nowrap;
+    }
+
+    /* ===== Loop feed ===== */
+    #loop-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .cycle-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .cycle-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .cycle-ts {
+      font-size: 0.8rem;
+      color: #8b949e;
+    }
+
+    .cycle-ref {
+      font-size: 0.75rem;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 20px;
+      padding: 2px 10px;
+      color: #58a6ff;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    .cycle-reason {
+      font-size: 0.9rem;
+      color: #c9d1d9;
+    }
+
+    .cycle-alloc {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 0.875rem;
+    }
+
+    .alloc-change-label { color: #8b949e; }
+    .alloc-before { color: #8b949e; }
+    .alloc-arrow { color: #58a6ff; font-weight: bold; }
+    .alloc-after { color: #e6edf3; font-weight: 600; }
+
+    .section-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: #6e7681;
+    }
+
+    /* ===== Payments ===== */
+    .cycle-payments {
+      border-left: 2px solid #21262d;
+      padding-left: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .payment-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.875rem;
+    }
+
+    .payment-label {
+      color: #c9d1d9;
+      min-width: 130px;
+    }
+
+    .payment-amount {
+      font-variant-numeric: tabular-nums;
+      color: #f85149;
+      font-weight: 600;
+    }
+
+    .payment-tx {
+      font-size: 0.78rem;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    /* ===== Fee + rebalance ===== */
+    .cycle-fee {
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .fee-amount {
+      color: #3fb950;
+      font-weight: 600;
+    }
+
+    .cycle-rebal {
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 600px) {
+      header { padding: 18px 16px; }
+      main { padding: 20px 14px; }
+      .stat-value { font-size: 1.1rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><span>Solvent</span> &mdash; autonomous fund on Casper</h1>
+    <p>An AI agent that runs an on chain vault and pays its own way over x402.</p>
+    <span class="network-badge">Casper Testnet</span>
+  </header>
+
+  <main>
+    <section>
+      <div class="section-heading">
+        <span class="dot"></span>
+        Current State
+      </div>
+      <div id="current-state">Loading...</div>
+    </section>
+
+    <section>
+      <div class="section-heading">Economic Loop</div>
+      <div id="loop-feed">Loading...</div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

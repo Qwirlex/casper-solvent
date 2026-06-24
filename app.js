@@ -1,29 +1,13 @@
-var CSPR_LIVE = "https://testnet.cspr.live/deploy/";
+var EXPLORER = "https://testnet.cspr.live/deploy/";
 var POLL_INTERVAL = 5000;
 
 function fmtAmount(raw) {
   var val = Number(raw) / 1e9;
   return val.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 4 }) + " sUSD";
 }
-
-function fmtTs(ts) {
-  return new Date(ts).toLocaleString("en-US", { hour12: false });
-}
-
-function txLink(hash, label) {
-  var a = document.createElement("a");
-  a.href = CSPR_LIVE + hash;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  a.textContent = label || hash.slice(0, 12) + "...";
-  return a;
-}
-
-function riskColor(score) {
-  if (score < 33) return "#4caf50";
-  if (score < 66) return "#ff9800";
-  return "#f44336";
-}
+function fmtTs(ts) { return new Date(ts).toLocaleString("en-US", { hour12: false }); }
+function riskColor(s) { if (s < 33) return "#34d399"; if (s < 66) return "#fbbf24"; return "#fb7185"; }
+function isRealHash(h) { return typeof h === "string" && /^[0-9a-f]{16,}$/i.test(h); }
 
 function el(tag, cls, text) {
   var e = document.createElement(tag);
@@ -31,145 +15,128 @@ function el(tag, cls, text) {
   if (text !== undefined) e.textContent = text;
   return e;
 }
+function txLink(hash, label) {
+  if (!isRealHash(hash)) { return el("span", "mono", label || hash); }
+  var a = document.createElement("a");
+  a.href = EXPLORER + hash;
+  a.target = "_blank"; a.rel = "noopener noreferrer";
+  a.className = "mono";
+  a.textContent = label || hash.slice(0, 12) + "… ↗";
+  return a;
+}
 
 function renderCurrentState(cycle) {
   var panel = document.getElementById("current-state");
   while (panel.firstChild) panel.removeChild(panel.firstChild);
 
-  var statRow = el("div", "stat-row");
+  var row = el("div", "stat-row");
+  function stat(label, value, color) {
+    var s = el("div", "stat");
+    s.appendChild(el("span", "stat-label", label));
+    var v = el("span", "stat-value", value);
+    if (color) v.style.color = color;
+    s.appendChild(v);
+    return s;
+  }
+  row.appendChild(stat("Vault assets", fmtAmount(cycle.vaultAssets)));
+  row.appendChild(stat("Feed price", "$" + cycle.feedPrice));
+  row.appendChild(stat("Risk score", cycle.riskScore + " / 100", riskColor(cycle.riskScore)));
+  row.appendChild(stat("Last cycle", fmtTs(cycle.ts)));
+  panel.appendChild(row);
 
-  var s1 = el("div", "stat");
-  s1.appendChild(el("span", "stat-label", "Vault Assets"));
-  s1.appendChild(el("span", "stat-value", fmtAmount(cycle.vaultAssets)));
-  statRow.appendChild(s1);
-
-  var s2 = el("div", "stat");
-  s2.appendChild(el("span", "stat-label", "Feed Price"));
-  s2.appendChild(el("span", "stat-value", "$" + cycle.feedPrice));
-  statRow.appendChild(s2);
-
-  var s3 = el("div", "stat");
-  s3.appendChild(el("span", "stat-label", "Risk Score"));
-  var riskVal = el("span", "stat-value risk-score", cycle.riskScore + " / 100");
-  riskVal.style.color = riskColor(cycle.riskScore);
-  s3.appendChild(riskVal);
-  statRow.appendChild(s3);
-
-  var s4 = el("div", "stat");
-  s4.appendChild(el("span", "stat-label", "Last Updated"));
-  s4.appendChild(el("span", "stat-value", fmtTs(cycle.ts)));
-  statRow.appendChild(s4);
-
-  panel.appendChild(statRow);
-
-  var allocSection = el("div", "alloc-section");
-  allocSection.appendChild(el("span", "stat-label", "Current Allocation"));
-
-  var allocBars = el("div", "alloc-bars");
-  var cons = cycle.allocationAfter.conservative;
-  var grow = cycle.allocationAfter.growth;
-
-  var consWrap = el("div", "alloc-bar-wrap");
-  var consBar = el("div", "alloc-bar conservative");
-  consBar.style.width = cons + "%";
-  consWrap.appendChild(consBar);
-  consWrap.appendChild(el("span", "alloc-label", "Conservative " + cons + "%"));
-  allocBars.appendChild(consWrap);
-
-  var growWrap = el("div", "alloc-bar-wrap");
-  var growBar = el("div", "alloc-bar growth");
-  growBar.style.width = grow + "%";
-  growWrap.appendChild(growBar);
-  growWrap.appendChild(el("span", "alloc-label", "Growth " + grow + "%"));
-  allocBars.appendChild(growWrap);
-
-  allocSection.appendChild(allocBars);
-  panel.appendChild(allocSection);
+  var alloc = el("div", "alloc-section");
+  alloc.appendChild(el("span", "stat-label", "Current allocation"));
+  var bars = el("div", "alloc-bars");
+  var a = cycle.allocationAfter;
+  function bar(kind, label, pct) {
+    var track = el("div", "alloc-track");
+    var rail = el("div", "alloc-rail");
+    var fill = el("div", "alloc-fill " + kind);
+    fill.style.width = pct + "%";
+    rail.appendChild(fill);
+    track.appendChild(el("span", "alloc-label", label + " " + pct + "%"));
+    track.appendChild(rail);
+    return track;
+  }
+  bars.appendChild(bar("conservative", "Conservative", a.conservative));
+  bars.appendChild(bar("growth", "Growth", a.growth));
+  alloc.appendChild(bars);
+  panel.appendChild(alloc);
 }
 
 function renderFeed(cycles) {
   var feed = document.getElementById("loop-feed");
   while (feed.firstChild) feed.removeChild(feed.firstChild);
+  var list = cycles.slice().reverse();
 
-  var reversed = cycles.slice().reverse();
-
-  for (var i = 0; i < reversed.length; i++) {
-    var cycle = reversed[i];
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
     var card = el("div", "cycle-card");
 
-    var header = el("div", "cycle-header");
-    header.appendChild(el("span", "cycle-ts", fmtTs(cycle.ts)));
-    header.appendChild(el("span", "cycle-ref", cycle.decisionRef));
-    card.appendChild(header);
+    var head = el("div", "cycle-header");
+    head.appendChild(el("span", "cycle-ts", fmtTs(c.ts)));
+    head.appendChild(el("span", "cycle-ref", c.decisionRef));
+    card.appendChild(head);
 
-    card.appendChild(el("div", "cycle-reason", cycle.reason));
+    card.appendChild(el("div", "cycle-reason", c.reason));
 
-    var allocDiv = el("div", "cycle-alloc");
-    allocDiv.appendChild(el("span", "alloc-change-label", "Allocation shift:"));
-    allocDiv.appendChild(document.createTextNode(" "));
-    var bef = cycle.allocationBefore;
-    var aft = cycle.allocationAfter;
-    allocDiv.appendChild(el("span", "alloc-before", "C " + bef.conservative + "% / G " + bef.growth + "%"));
-    allocDiv.appendChild(el("span", "alloc-arrow", " → "));
-    allocDiv.appendChild(el("span", "alloc-after", "C " + aft.conservative + "% / G " + aft.growth + "%"));
-    card.appendChild(allocDiv);
+    var ad = el("div", "cycle-alloc");
+    ad.appendChild(el("span", "alloc-change-label", "Allocation"));
+    var b = c.allocationBefore, af = c.allocationAfter;
+    ad.appendChild(el("span", "pill before", "C " + b.conservative + " / G " + b.growth));
+    ad.appendChild(el("span", "alloc-arrow", "→"));
+    ad.appendChild(el("span", "pill after", "C " + af.conservative + " / G " + af.growth));
+    card.appendChild(ad);
 
-    if (cycle.x402Payments && cycle.x402Payments.length > 0) {
-      var paymentsDiv = el("div", "cycle-payments");
-      paymentsDiv.appendChild(el("div", "section-title", "x402 Payments out"));
+    var grid = el("div", "cycle-grid");
 
-      for (var j = 0; j < cycle.x402Payments.length; j++) {
-        var p = cycle.x402Payments[j];
-        var row = el("div", "payment-row");
-        row.appendChild(el("span", "payment-label", p.label));
-        row.appendChild(el("span", "payment-amount", fmtAmount(p.amount)));
-        var txSpan = el("span", "payment-tx");
-        txSpan.appendChild(txLink(p.txHash, p.txHash.slice(0, 14) + "..."));
-        row.appendChild(txSpan);
-        paymentsDiv.appendChild(row);
+    var payCell = el("div", "cell");
+    payCell.appendChild(el("div", "cell-title", "Service payments out, on chain"));
+    if (c.x402Payments) {
+      for (var j = 0; j < c.x402Payments.length; j++) {
+        var p = c.x402Payments[j];
+        var prow = el("div", "payment-row");
+        prow.appendChild(el("span", null, p.label));
+        prow.appendChild(el("span", "payment-amount", fmtAmount(p.amount)));
+        prow.appendChild(txLink(p.txHash));
+        payCell.appendChild(prow);
       }
-      card.appendChild(paymentsDiv);
     }
+    grid.appendChild(payCell);
 
-    var feeDiv = el("div", "cycle-fee");
-    feeDiv.appendChild(el("span", "section-title", "Fee harvested in: "));
-    feeDiv.appendChild(el("span", "fee-amount", fmtAmount(cycle.feeHarvested)));
-    card.appendChild(feeDiv);
+    var actCell = el("div", "cell");
+    actCell.appendChild(el("div", "cell-title", "Rebalance and fee"));
+    var rebal = el("div", "rebal-line");
+    rebal.appendChild(document.createTextNode("Rebalance "));
+    rebal.appendChild(txLink(c.rebalanceTxHash, "View tx ↗"));
+    actCell.appendChild(rebal);
+    var fee = el("div", "rebal-line");
+    fee.appendChild(document.createTextNode("Fee skimmed "));
+    fee.appendChild(el("span", "fee-amount", fmtAmount(c.feeHarvested)));
+    actCell.appendChild(fee);
+    grid.appendChild(actCell);
 
-    var rebalDiv = el("div", "cycle-rebal");
-    rebalDiv.appendChild(el("span", "section-title", "Rebalance: "));
-    rebalDiv.appendChild(txLink(cycle.rebalanceTxHash, "View rebalance tx"));
-    card.appendChild(rebalDiv);
-
+    card.appendChild(grid);
     feed.appendChild(card);
   }
 }
 
 function fetchData() {
   fetch("loop-log.json")
-    .then(function(res) {
-      if (!res.ok) throw new Error("not found");
-      return res.json();
-    })
-    .catch(function() {
-      return fetch("sample-loop-log.json").then(function(res) {
-        if (!res.ok) throw new Error("sample not found");
-        return res.json();
-      });
-    })
-    .then(function(data) {
-      if (!data || data.length === 0) {
-        document.getElementById("current-state").textContent = "No cycle data yet.";
-        document.getElementById("loop-feed").textContent = "Waiting for the first agent cycle...";
+    .then(function (r) { if (!r.ok) throw new Error("no live log"); return r.json(); })
+    .catch(function () { return fetch("sample-loop-log.json").then(function (r) { return r.json(); }); })
+    .then(function (data) {
+      if (!data || !data.length) {
+        document.getElementById("current-state").textContent = "Waiting for the first agent cycle…";
+        document.getElementById("loop-feed").textContent = "";
         return;
       }
-      var latest = data[data.length - 1];
-      renderCurrentState(latest);
+      renderCurrentState(data[data.length - 1]);
       renderFeed(data);
+      var hs = document.getElementById("hs-cycles");
+      if (hs) hs.textContent = String(data.length);
     })
-    .catch(function(err) {
-      console.error("Could not load any log file:", err);
-    });
+    .catch(function (e) { console.error("log load failed", e); });
 }
 
 fetchData();

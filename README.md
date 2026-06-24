@@ -74,16 +74,22 @@ live log exists yet.
 
 ## Run it on Casper testnet
 
-1. Fund the agent account from the testnet faucet. The public key is in
-   `keys/agent/public_key_hex`.
-2. Build and deploy the contracts on a host with Rust and cargo-odra:
+The build host needs Rust, cargo-odra, the binaryen wasm-opt, the wabt wasm-strip, and
+casper-client. The contracts build cleanly to optimized wasm with this toolchain.
+
+1. Fund the agent account from the testnet faucet at testnet.cspr.live. The faucet
+   funds the account signed in with a Casper Wallet, so import `keys/agent/secret_key.pem`
+   into Casper Wallet and request the test tokens, or send them from another funded
+   account to the public key in `keys/agent/public_key_hex`.
+2. Build and deploy the contracts on the build host:
 
 ```bash
 CASPER_NODE=<node> CASPER_KEY=keys/agent/secret_key.pem ./scripts/deploy-contracts.sh
 ```
 
 3. Put the deployed `PAY_TOKEN_HASH` and `VAULT_HASH` into `agents/.env.testnet`, set
-   `CASPER_LIVE=1`, then run the agents.
+   `CASPER_LIVE=1`, then run the agents. The fund agent now submits real rebalances and
+   the service agents settle real CEP-18 transfers over x402.
 
 ## Testnet deployment
 

@@ -18,6 +18,9 @@
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 [hidden] { display: none !important; }
+/* Hide CSPR.click's own injected top bar, we use our own account UI. The sign-in
+   modal renders in a separate portal and keeps working. */
+#csprclick-ui { display: none !important; }
 html { scroll-behavior: smooth; }
 body {
   background:

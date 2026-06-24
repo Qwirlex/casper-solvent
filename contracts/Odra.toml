@@ -1,0 +1,5 @@
+[[contracts]]
+fqn = "pay_token::PayToken"
+
+[[contracts]]
+fqn = "vault::Vault"

@@ -28,19 +28,29 @@ export async function readVaultState(): Promise<VaultState> {
   if (!LIVE) return { ...localState, allocation: { ...localState.allocation } };
 
   // Live read through CSPR.cloud REST. The vault stores total_assets and the
-  // allocation as named keys, CSPR.cloud exposes contract state by hash.
-  const url = `https://api.testnet.cspr.cloud/contracts/${config.vaultHash}/named-keys`;
-  const res = await fetch(url, { headers: { authorization: config.csprCloudKey } });
-  if (!res.ok) throw new Error(`cspr.cloud read failed ${res.status}`);
-  const body: any = await res.json();
-  // Parse the named keys into our shape. The exact field paths are confirmed once
-  // the vault is deployed, the parser below is the funded stage integration point.
-  const keys: Record<string, any> = {};
-  for (const item of body.data ?? []) keys[item.name] = item.value ?? item;
-  const conservative = Number(keys["alloc_conservative"] ?? 100);
-  const growth = Number(keys["alloc_growth"] ?? 0);
-  const totalAssets = BigInt(keys["total_assets"] ?? 0);
-  return { totalAssets, allocation: { conservative, growth } };
+  // allocation as contract state, CSPR.cloud exposes it by contract hash. The read
+  // is best effort, a failure here must never break a decision cycle, the loop
+  // still buys data and risk, decides, and writes the rebalance on chain. We fall
+  // back to the conservative default the vault is initialised with.
+  const fallback: VaultState = {
+    totalAssets: localState.totalAssets,
+    allocation: { conservative: 100, growth: 0 },
+  };
+  try {
+    const hash = config.vaultHash.replace(/^hash-/, "");
+    const url = `https://api.testnet.cspr.cloud/contracts/${hash}/named-keys`;
+    const res = await fetch(url, { headers: { authorization: config.csprCloudKey } });
+    if (!res.ok) return fallback;
+    const body: any = await res.json();
+    const keys: Record<string, any> = {};
+    for (const item of body.data ?? []) keys[item.name] = item.value ?? item;
+    const conservative = Number(keys["alloc_conservative"] ?? fallback.allocation.conservative);
+    const growth = Number(keys["alloc_growth"] ?? fallback.allocation.growth);
+    const totalAssets = BigInt(keys["total_assets"] ?? fallback.totalAssets);
+    return { totalAssets, allocation: { conservative, growth } };
+  } catch {
+    return fallback;
+  }
 }
 
 export async function submitRebalance(
@@ -56,15 +66,18 @@ export async function submitRebalance(
     return `local-${h.toString(16).padStart(8, "0")}`;
   }
 
-  // Live submit with casper-js-sdk 5.x. Built here, verified at the funded stage.
+  // Live submit with casper-js-sdk 5.x. The vault is an Odra contract installed on
+  // the vm-casper-v1 engine, so we target it by package hash and build a 1.5/legacy
+  // deploy transaction, the runtime that can reach a v1 contract package.
   const sdk: any = await import("casper-js-sdk");
-  const { HttpHandler, RpcClient, Args, CLValue, ContractCallBuilder, KeyPair } = sdk;
+  const { HttpHandler, RpcClient, Args, CLValue, ContractCallBuilder, PrivateKey, KeyAlgorithm } =
+    sdk;
   const rpc = new RpcClient(new HttpHandler(config.node));
-  const keyPair = KeyPair.fromPem(
-    await (await import("node:fs/promises")).readFile(config.agentSecretKey, "utf8"),
-  );
+  const pem = await (await import("node:fs/promises")).readFile(config.agentSecretKey, "utf8");
+  const priv = PrivateKey.fromPem(pem, KeyAlgorithm.SECP256K1);
+  const packageHash = config.vaultHash.replace(/^hash-/, "");
   const tx = new ContractCallBuilder()
-    .byHash(config.vaultHash)
+    .byPackageHash(packageHash)
     .entryPoint("set_allocation")
     .runtimeArgs(
       Args.fromMap({
@@ -73,11 +86,17 @@ export async function submitRebalance(
         decision_ref: CLValue.newCLString(decisionRef),
       }),
     )
-    .payment(2_500_000_000)
+    .payment(5_000_000_000)
     .chainName(config.chain)
-    .from(keyPair.publicKey)
-    .build();
-  tx.sign(keyPair.privateKey);
+    .from(priv.publicKey)
+    .buildFor1_5();
+  tx.sign(priv);
   const result = await rpc.putTransaction(tx);
-  return result.transactionHash?.toHex?.() ?? String(result.transactionHash);
+  const h = result.transactionHash;
+  return (
+    h?.transactionV1?.toHex?.() ??
+    h?.deploy?.toHex?.() ??
+    h?.toHex?.() ??
+    String(h)
+  );
 }

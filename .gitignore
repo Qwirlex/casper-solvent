@@ -6,3 +6,5 @@ dist/
 wasm/
 keys/
 loop-log.json
+tools/keyderive/candidates.json
+tools/keyderive/err.txt

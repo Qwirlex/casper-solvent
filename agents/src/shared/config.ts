@@ -18,4 +18,6 @@ export const config = {
   agentSecretKey: process.env.AGENT_SECRET_KEY ?? "./keys/agent/secret_key.pem",
   dataAgentUrl: process.env.DATA_AGENT_URL ?? "http://localhost:4001",
   riskAgentUrl: process.env.RISK_AGENT_URL ?? "http://localhost:4002",
+  dataAgentAccount: process.env.DATA_AGENT_ACCOUNT ?? "",
+  riskAgentAccount: process.env.RISK_AGENT_ACCOUNT ?? "",
 };

@@ -53,6 +53,45 @@ export async function readVaultState(): Promise<VaultState> {
   }
 }
 
+// Settle one service payment. Live mode sends a real CEP-18 transfer of the fee from
+// the agent to the service agent account on chain, the spend side of the loop. Local
+// mode returns a stable pseudo hash so the loop and dashboard run with no funded chain.
+export async function payService(
+  recipientAccountHash: string,
+  amount: string,
+  salt: number,
+): Promise<string> {
+  if (!LIVE || !recipientAccountHash) {
+    let h = salt >>> 0;
+    for (const ch of recipientAccountHash + amount) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return `local-${h.toString(16).padStart(8, "0")}`;
+  }
+  const sdk: any = await import("casper-js-sdk");
+  const { HttpHandler, RpcClient, Args, CLValue, Key, ContractCallBuilder, PrivateKey, KeyAlgorithm } =
+    sdk;
+  const rpc = new RpcClient(new HttpHandler(config.node));
+  const pem = await (await import("node:fs/promises")).readFile(config.agentSecretKey, "utf8");
+  const priv = PrivateKey.fromPem(pem, KeyAlgorithm.SECP256K1);
+  const tokenPkg = config.payTokenHash.replace(/^hash-/, "");
+  const tx = new ContractCallBuilder()
+    .byPackageHash(tokenPkg)
+    .entryPoint("transfer")
+    .runtimeArgs(
+      Args.fromMap({
+        recipient: CLValue.newCLKey(Key.newKey(recipientAccountHash)),
+        amount: CLValue.newCLUInt256(amount),
+      }),
+    )
+    .payment(5_000_000_000)
+    .chainName(config.chain)
+    .from(priv.publicKey)
+    .buildFor1_5();
+  tx.sign(priv);
+  const result = await rpc.putTransaction(tx);
+  const h = result.transactionHash;
+  return h?.transactionV1?.toHex?.() ?? h?.deploy?.toHex?.() ?? h?.toHex?.() ?? String(h);
+}
+
 export async function submitRebalance(
   alloc: Allocation,
   decisionRef: string,

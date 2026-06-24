@@ -2,7 +2,7 @@ import { config } from "../shared/config.js";
 import { payAndGet } from "./x402Client.js";
 import { decideAllocation } from "./decision.js";
 import { explainDecision } from "./llm.js";
-import { readVaultState, submitRebalance } from "./chain.js";
+import { readVaultState, submitRebalance, payService } from "./chain.js";
 import type { Feed, RiskScore, Allocation } from "../shared/types.js";
 
 export interface X402Payment {
@@ -28,12 +28,6 @@ export interface CycleRecord {
 // Price the agent pays per service call, 1 sUSD at 9 decimals.
 const X402_PRICE = "1000000000";
 
-function pseudoTx(label: string, salt: number): string {
-  let h = salt >>> 0;
-  for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `local-${h.toString(16).padStart(8, "0")}`;
-}
-
 // One decision cycle. Read state, buy a feed and a risk score over x402, decide a
 // bounded allocation, narrate it with Gemini, then submit the rebalance on chain.
 export async function runCycle(log: (m: string) => void = console.log): Promise<CycleRecord> {
@@ -43,12 +37,14 @@ export async function runCycle(log: (m: string) => void = console.log): Promise<
   );
 
   const feed = await payAndGet<Feed>(`${config.dataAgentUrl}/feed`);
-  log(`paid data-agent over x402, price ${feed.price}`);
+  const dataTx = await payService(config.dataAgentAccount, X402_PRICE, 1);
+  log(`bought feed price ${feed.price}, settled CEP-18 to data-agent ${dataTx}`);
 
   const risk = await payAndGet<RiskScore>(
     `${config.riskAgentUrl}/risk?changePct24h=${feed.changePct24h}&price=${feed.price}`,
   );
-  log(`paid risk-agent over x402, score ${risk.score}`);
+  const riskTx = await payService(config.riskAgentAccount, X402_PRICE, 2);
+  log(`bought risk score ${risk.score}, settled CEP-18 to risk-agent ${riskTx}`);
 
   const decision = decideAllocation(risk);
   const reason = await explainDecision(feed, risk, decision.allocation);
@@ -69,8 +65,8 @@ export async function runCycle(log: (m: string) => void = console.log): Promise<
     decisionRef: decision.decisionRef,
     reason,
     x402Payments: [
-      { label: "data-agent feed", amount: X402_PRICE, txHash: pseudoTx("data", risk.score) },
-      { label: "risk-agent score", amount: X402_PRICE, txHash: pseudoTx("risk", risk.score) },
+      { label: "data-agent feed", amount: X402_PRICE, txHash: dataTx },
+      { label: "risk-agent score", amount: X402_PRICE, txHash: riskTx },
     ],
     feeHarvested,
     rebalanceTxHash,

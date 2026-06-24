@@ -86,10 +86,37 @@ async function submitVaultCall(entryPoint, argName, amount, btn) {
       .buildFor1_5();
     const json = tx.toJSON();
     showResult("ok", "Sent to your wallet. Approve to sign and submit…");
-    const res = await window.csprclick.send(json, activeKey, (s) => console.log("status", s), 150);
+    let capturedHash = null;
+    const onStatus = (status, data) => {
+      console.log("csprclick status", status, data);
+      if (data && typeof data === "object") {
+        capturedHash =
+          capturedHash ||
+          data.deployHash || data.deploy_hash || data.transactionHash ||
+          (data.deploy && (data.deploy.hash || data.deploy.deploy_hash)) ||
+          (data.transaction && data.transaction.hash);
+      } else if (typeof data === "string" && /^[0-9a-f]{60,}$/i.test(data)) {
+        capturedHash = capturedHash || data;
+      }
+    };
+    const res = await window.csprclick.send(json, activeKey, onStatus, 150);
+    console.log("csprclick send result", res);
     if (!res || res.cancelled) { showResult("err", "Cancelled in the wallet."); return; }
     if (res.error) { showResult("err", "Failed: " + res.error); return; }
-    showResult("ok", "Submitted on chain.", EXPLORER + res.transactionHash, "View transaction ↗");
+    const cc = res.csprCloudTransaction || {};
+    const hash =
+      res.transactionHash || res.deployHash || res.deploy_hash ||
+      cc.deploy_hash || cc.transaction_hash || cc.hash || capturedHash;
+    // Optimistically reflect the action in the position panel. The on chain state
+    // updates once the deploy executes, this gives immediate visible feedback.
+    const sharesEl = $("p-shares");
+    const cur = parseFloat(sharesEl.textContent) || 0;
+    sharesEl.textContent = String(entryPoint === "deposit" ? cur + amount : Math.max(0, cur - amount));
+    if (hash && /^[0-9a-f]{60,}$/i.test(String(hash))) {
+      showResult("ok", "Submitted on chain, pending confirmation.", EXPLORER + hash, "View transaction ↗");
+    } else {
+      showResult("ok", "Signed and sent, status " + (res.status || "pending") + ". Check your wallet activity for the deploy.");
+    }
   } catch (e) {
     console.error(e);
     showResult("err", "Could not build or submit: " + (e && e.message ? e.message : String(e)));

@@ -1,0 +1,19 @@
+{
+  "name": "solvent-agents",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "^4",
+    "dotenv": "^16"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "tsx": "^4",
+    "vitest": "^2",
+    "@types/express": "^4",
+    "@types/node": "^20"
+  }
+}

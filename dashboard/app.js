@@ -1,143 +1,170 @@
-var EXPLORER = "https://testnet.cspr.live/deploy/";
-var POLL_INTERVAL = 5000;
+// Solvent dApp front end. CSPR.click handles multi wallet connect, signing and
+// submission. casper-js-sdk builds the vault deposit and withdraw transactions.
+const VAULT_PKG = "99abf0408b2c799aabf8b1b3d275d1117b0a2ca020657ec0f1fd4664b0638389";
+const CHAIN = "casper-test";
+const EXPLORER = "https://testnet.cspr.live/deploy/";
+const SDK_URL = "https://esm.sh/casper-js-sdk@5.0.12";
 
-function fmtAmount(raw) {
-  var val = Number(raw) / 1e9;
-  return val.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 4 }) + " sUSD";
+let activeKey = null;
+let sdkPromise = null;
+function sdk() { return (sdkPromise = sdkPromise || import(SDK_URL)); }
+
+const $ = (id) => document.getElementById(id);
+function fmt(motes) { return (Number(motes) / 1e9).toLocaleString("en-US", { maximumFractionDigits: 4 }); }
+function shortKey(k) { return k ? k.slice(0, 6) + "…" + k.slice(-4) : ""; }
+function el(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
+
+/* ---------- wallet ---------- */
+function onConnected(key) {
+  activeKey = key;
+  $("connect-btn").hidden = true;
+  $("account-chip").hidden = false;
+  $("account-key").textContent = shortKey(key);
+  $("position-empty").hidden = true;
+  $("position-live").hidden = false;
+  $("p-wallet").textContent = shortKey(key);
+  const d = $("deposit-btn"), w = $("withdraw-btn");
+  d.disabled = false; d.textContent = "Deposit into vault";
+  w.disabled = false; w.textContent = "Withdraw shares";
 }
+function onDisconnected() {
+  activeKey = null;
+  $("connect-btn").hidden = false;
+  $("account-chip").hidden = true;
+  $("position-empty").hidden = false;
+  $("position-live").hidden = true;
+  const d = $("deposit-btn"), w = $("withdraw-btn");
+  d.disabled = true; d.textContent = "Connect wallet to deposit";
+  w.disabled = true; w.textContent = "Connect wallet to withdraw";
+}
+
+function wireCsprClick() {
+  const cc = window.csprclick;
+  if (!cc) return;
+  $("connect-btn").onclick = () => cc.signIn();
+  $("disconnect-btn").onclick = () => cc.signOut && cc.signOut();
+  if (cc.on) {
+    cc.on("csprclick:signed_in", async () => { try { onConnected(await cc.getActivePublicKey()); } catch (e) { console.error(e); } });
+    cc.on("csprclick:switched_account", async () => { try { onConnected(await cc.getActivePublicKey()); } catch (e) { console.error(e); } });
+    cc.on("csprclick:signed_out", onDisconnected);
+  }
+  if (cc.getActivePublicKey) cc.getActivePublicKey().then((k) => { if (k) onConnected(k); }).catch(() => {});
+}
+if (window.csprclick) wireCsprClick();
+else window.addEventListener("csprclick:loaded", wireCsprClick);
+
+/* ---------- deposit / withdraw ---------- */
+function showResult(kind, text, linkUrl, linkLabel) {
+  const box = $("tx-result");
+  box.hidden = false;
+  box.className = "tx-result " + kind;
+  box.textContent = "";
+  box.appendChild(document.createTextNode(text + " "));
+  if (linkUrl) {
+    const a = document.createElement("a");
+    a.href = linkUrl; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = linkLabel || "View ↗";
+    box.appendChild(a);
+  }
+}
+
+async function submitVaultCall(entryPoint, argName, amount, btn) {
+  if (!activeKey) return;
+  if (!(amount > 0)) { showResult("err", "Enter an amount greater than zero."); return; }
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = "Awaiting wallet…";
+  try {
+    const { ContractCallBuilder, Args, CLValue, PublicKey } = await sdk();
+    const motes = BigInt(Math.round(amount * 1e9)).toString();
+    const tx = new ContractCallBuilder()
+      .byPackageHash(VAULT_PKG)
+      .entryPoint(entryPoint)
+      .runtimeArgs(Args.fromMap({ [argName]: CLValue.newCLUInt256(motes) }))
+      .payment(5_000_000_000)
+      .chainName(CHAIN)
+      .from(PublicKey.fromHex(activeKey))
+      .buildFor1_5();
+    const json = tx.toJSON();
+    showResult("ok", "Sent to your wallet. Approve to sign and submit…");
+    const res = await window.csprclick.send(json, activeKey, (s) => console.log("status", s), 150);
+    if (!res || res.cancelled) { showResult("err", "Cancelled in the wallet."); return; }
+    if (res.error) { showResult("err", "Failed: " + res.error); return; }
+    showResult("ok", "Submitted on chain.", EXPLORER + res.transactionHash, "View transaction ↗");
+  } catch (e) {
+    console.error(e);
+    showResult("err", "Could not build or submit: " + (e && e.message ? e.message : String(e)));
+  } finally {
+    btn.disabled = false; btn.textContent = original;
+  }
+}
+
+$("deposit-btn").onclick = () => submitVaultCall("deposit", "amount", parseFloat($("deposit-amount").value), $("deposit-btn"));
+$("withdraw-btn").onclick = () => submitVaultCall("withdraw", "share_amount", parseFloat($("withdraw-amount").value), $("withdraw-btn"));
+
+document.querySelectorAll(".tab").forEach((t) => {
+  t.onclick = () => {
+    document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
+    t.classList.add("active");
+    $("tab-deposit").hidden = t.dataset.tab !== "deposit";
+    $("tab-withdraw").hidden = t.dataset.tab !== "withdraw";
+  };
+});
+document.querySelectorAll(".chip-btn").forEach((c) => {
+  c.onclick = () => {
+    const target = c.dataset.fill === "deposit" ? "deposit-amount" : "withdraw-amount";
+    $(target).value = c.dataset.val === "all" ? ($("p-shares").textContent || "0") : c.dataset.val;
+  };
+});
+
+/* ---------- vault stats + agent feed ---------- */
 function fmtTs(ts) { return new Date(ts).toLocaleString("en-US", { hour12: false }); }
-function riskColor(s) { if (s < 33) return "#34d399"; if (s < 66) return "#fbbf24"; return "#fb7185"; }
-function isRealHash(h) { return typeof h === "string" && /^[0-9a-f]{16,}$/i.test(h); }
-
-function el(tag, cls, text) {
-  var e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-function txLink(hash, label) {
-  if (!isRealHash(hash)) { return el("span", "mono", label || hash); }
-  var a = document.createElement("a");
-  a.href = EXPLORER + hash;
-  a.target = "_blank"; a.rel = "noopener noreferrer";
-  a.className = "mono";
-  a.textContent = label || hash.slice(0, 12) + "… ↗";
-  return a;
+function isHash(h) { return typeof h === "string" && /^[0-9a-f]{16,}$/i.test(h); }
+function txa(hash, label) {
+  if (!isHash(hash)) return el("span", "mono", label);
+  const a = document.createElement("a"); a.href = EXPLORER + hash; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = label; return a;
 }
 
-function renderCurrentState(cycle) {
-  var panel = document.getElementById("current-state");
-  while (panel.firstChild) panel.removeChild(panel.firstChild);
-
-  var row = el("div", "stat-row");
-  function stat(label, value, color) {
-    var s = el("div", "stat");
-    s.appendChild(el("span", "stat-label", label));
-    var v = el("span", "stat-value", value);
-    if (color) v.style.color = color;
-    s.appendChild(v);
-    return s;
-  }
-  row.appendChild(stat("Vault assets", fmtAmount(cycle.vaultAssets)));
-  row.appendChild(stat("Feed price", "$" + cycle.feedPrice));
-  row.appendChild(stat("Risk score", cycle.riskScore + " / 100", riskColor(cycle.riskScore)));
-  row.appendChild(stat("Last cycle", fmtTs(cycle.ts)));
-  panel.appendChild(row);
-
-  var alloc = el("div", "alloc-section");
-  alloc.appendChild(el("span", "stat-label", "Current allocation"));
-  var bars = el("div", "alloc-bars");
-  var a = cycle.allocationAfter;
-  function bar(kind, label, pct) {
-    var track = el("div", "alloc-track");
-    var rail = el("div", "alloc-rail");
-    var fill = el("div", "alloc-fill " + kind);
-    fill.style.width = pct + "%";
-    rail.appendChild(fill);
-    track.appendChild(el("span", "alloc-label", label + " " + pct + "%"));
-    track.appendChild(rail);
-    return track;
-  }
-  bars.appendChild(bar("conservative", "Conservative", a.conservative));
-  bars.appendChild(bar("growth", "Growth", a.growth));
-  alloc.appendChild(bars);
-  panel.appendChild(alloc);
+function renderVault(latest) {
+  $("v-assets").textContent = fmt(latest.vaultAssets) + " sUSD";
+  const a = latest.allocationAfter;
+  $("v-cons").textContent = a.conservative + "%";
+  $("v-grow").textContent = a.growth + "%";
+  $("v-allocbar").style.width = a.conservative + "%";
 }
-
 function renderFeed(cycles) {
-  var feed = document.getElementById("loop-feed");
-  while (feed.firstChild) feed.removeChild(feed.firstChild);
-  var list = cycles.slice().reverse();
-
-  for (var i = 0; i < list.length; i++) {
-    var c = list[i];
-    var card = el("div", "cycle-card");
-
-    var head = el("div", "cycle-header");
+  const feed = $("loop-feed"); feed.textContent = "";
+  cycles.slice().reverse().forEach((c) => {
+    const card = el("div", "cycle-card");
+    const head = el("div", "cycle-head");
     head.appendChild(el("span", "cycle-ts", fmtTs(c.ts)));
     head.appendChild(el("span", "cycle-ref", c.decisionRef));
     card.appendChild(head);
-
     card.appendChild(el("div", "cycle-reason", c.reason));
-
-    var ad = el("div", "cycle-alloc");
-    ad.appendChild(el("span", "alloc-change-label", "Allocation"));
-    var b = c.allocationBefore, af = c.allocationAfter;
-    ad.appendChild(el("span", "pill before", "C " + b.conservative + " / G " + b.growth));
-    ad.appendChild(el("span", "alloc-arrow", "→"));
-    ad.appendChild(el("span", "pill after", "C " + af.conservative + " / G " + af.growth));
-    card.appendChild(ad);
-
-    var grid = el("div", "cycle-grid");
-
-    var payCell = el("div", "cell");
-    payCell.appendChild(el("div", "cell-title", "Service payments out, on chain"));
-    if (c.x402Payments) {
-      for (var j = 0; j < c.x402Payments.length; j++) {
-        var p = c.x402Payments[j];
-        var prow = el("div", "payment-row");
-        prow.appendChild(el("span", null, p.label));
-        prow.appendChild(el("span", "payment-amount", fmtAmount(p.amount)));
-        prow.appendChild(txLink(p.txHash));
-        payCell.appendChild(prow);
-      }
-    }
-    grid.appendChild(payCell);
-
-    var actCell = el("div", "cell");
-    actCell.appendChild(el("div", "cell-title", "Rebalance and fee"));
-    var rebal = el("div", "rebal-line");
-    rebal.appendChild(document.createTextNode("Rebalance "));
-    rebal.appendChild(txLink(c.rebalanceTxHash, "View tx ↗"));
-    actCell.appendChild(rebal);
-    var fee = el("div", "rebal-line");
-    fee.appendChild(document.createTextNode("Fee skimmed "));
-    fee.appendChild(el("span", "fee-amount", fmtAmount(c.feeHarvested)));
-    actCell.appendChild(fee);
-    grid.appendChild(actCell);
-
-    card.appendChild(grid);
+    const al = el("div", "cycle-alloc");
+    al.appendChild(el("span", "lbl", "Rebalance"));
+    al.appendChild(el("span", "pill b", `C ${c.allocationBefore.conservative}/G ${c.allocationBefore.growth}`));
+    al.appendChild(el("span", "arr", "→"));
+    al.appendChild(el("span", "pill a", `C ${c.allocationAfter.conservative}/G ${c.allocationAfter.growth}`));
+    card.appendChild(al);
+    const tx = el("div", "cycle-tx");
+    (c.x402Payments || []).forEach((p) => {
+      const wrap = el("span");
+      wrap.appendChild(el("span", "lbl", p.label.split(" ")[0] + " pay "));
+      wrap.appendChild(txa(p.txHash, "tx ↗"));
+      tx.appendChild(wrap);
+    });
+    const rb = el("span");
+    rb.appendChild(el("span", "lbl", "rebalance "));
+    rb.appendChild(txa(c.rebalanceTxHash, "tx ↗"));
+    tx.appendChild(rb);
+    card.appendChild(tx);
     feed.appendChild(card);
-  }
+  });
 }
-
-function fetchData() {
-  fetch("loop-log.json")
-    .then(function (r) { if (!r.ok) throw new Error("no live log"); return r.json(); })
-    .catch(function () { return fetch("sample-loop-log.json").then(function (r) { return r.json(); }); })
-    .then(function (data) {
-      if (!data || !data.length) {
-        document.getElementById("current-state").textContent = "Waiting for the first agent cycle…";
-        document.getElementById("loop-feed").textContent = "";
-        return;
-      }
-      renderCurrentState(data[data.length - 1]);
-      renderFeed(data);
-      var hs = document.getElementById("hs-cycles");
-      if (hs) hs.textContent = String(data.length);
-    })
-    .catch(function (e) { console.error("log load failed", e); });
+function loadFeed() {
+  fetch("loop-log.json").then((r) => { if (!r.ok) throw 0; return r.json(); })
+    .catch(() => fetch("sample-loop-log.json").then((r) => r.json()))
+    .then((data) => { if (data && data.length) { renderVault(data[data.length - 1]); renderFeed(data); } })
+    .catch((e) => console.error("feed", e));
 }
-
-fetchData();
-setInterval(fetchData, POLL_INTERVAL);
+loadFeed();
+setInterval(loadFeed, 8000);

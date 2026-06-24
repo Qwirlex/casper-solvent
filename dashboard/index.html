@@ -1,311 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Solvent &mdash; autonomous fund on Casper</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: #0d1117;
-      color: #c9d1d9;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-      min-height: 100vh;
-    }
-
-    a { color: #58a6ff; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-
-    /* ===== Header ===== */
-    header {
-      background: #161b22;
-      border-bottom: 1px solid #30363d;
-      padding: 24px 32px;
-    }
-
-    header h1 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      color: #e6edf3;
-      letter-spacing: -0.3px;
-      margin-bottom: 6px;
-    }
-
-    header h1 span {
-      color: #58a6ff;
-    }
-
-    header p {
-      font-size: 0.95rem;
-      color: #8b949e;
-      max-width: 600px;
-    }
-
-    .network-badge {
-      display: inline-block;
-      margin-top: 10px;
-      background: #1f2937;
-      border: 1px solid #374151;
-      border-radius: 20px;
-      padding: 3px 12px;
-      font-size: 0.75rem;
-      color: #9ca3af;
-      letter-spacing: 0.3px;
-    }
-
-    /* ===== Main layout ===== */
-    main {
-      max-width: 960px;
-      margin: 0 auto;
-      padding: 32px 24px;
-    }
-
-    section { margin-bottom: 40px; }
-
-    .section-heading {
-      font-size: 1.05rem;
-      font-weight: 600;
-      color: #e6edf3;
-      margin-bottom: 16px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #21262d;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #3fb950;
-      animation: pulse 2s infinite;
-      flex-shrink: 0;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    /* ===== Current State Panel ===== */
-    #current-state {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 24px;
-    }
-
-    .stat-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 24px;
-      margin-bottom: 24px;
-    }
-
-    .stat {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 150px;
-    }
-
-    .stat-label {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: #8b949e;
-    }
-
-    .stat-value {
-      font-size: 1.35rem;
-      font-weight: 700;
-      color: #e6edf3;
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* ===== Allocation bars ===== */
-    .alloc-section { margin-top: 8px; }
-
-    .alloc-bars {
-      margin-top: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .alloc-bar-wrap {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .alloc-bar {
-      height: 18px;
-      border-radius: 4px;
-      min-width: 4px;
-      transition: width 0.6s ease;
-    }
-
-    .alloc-bar.conservative { background: #388bfd; }
-    .alloc-bar.growth { background: #3fb950; }
-
-    .alloc-label {
-      font-size: 0.85rem;
-      color: #8b949e;
-      white-space: nowrap;
-    }
-
-    /* ===== Loop feed ===== */
-    #loop-feed {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .cycle-card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 20px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .cycle-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .cycle-ts {
-      font-size: 0.8rem;
-      color: #8b949e;
-    }
-
-    .cycle-ref {
-      font-size: 0.75rem;
-      background: #21262d;
-      border: 1px solid #30363d;
-      border-radius: 20px;
-      padding: 2px 10px;
-      color: #58a6ff;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    }
-
-    .cycle-reason {
-      font-size: 0.9rem;
-      color: #c9d1d9;
-    }
-
-    .cycle-alloc {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-      font-size: 0.875rem;
-    }
-
-    .alloc-change-label { color: #8b949e; }
-    .alloc-before { color: #8b949e; }
-    .alloc-arrow { color: #58a6ff; font-weight: bold; }
-    .alloc-after { color: #e6edf3; font-weight: 600; }
-
-    .section-title {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.7px;
-      color: #6e7681;
-    }
-
-    /* ===== Payments ===== */
-    .cycle-payments {
-      border-left: 2px solid #21262d;
-      padding-left: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .payment-row {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-      font-size: 0.875rem;
-    }
-
-    .payment-label {
-      color: #c9d1d9;
-      min-width: 130px;
-    }
-
-    .payment-amount {
-      font-variant-numeric: tabular-nums;
-      color: #f85149;
-      font-weight: 600;
-    }
-
-    .payment-tx {
-      font-size: 0.78rem;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    }
-
-    /* ===== Fee + rebalance ===== */
-    .cycle-fee {
-      font-size: 0.875rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .fee-amount {
-      color: #3fb950;
-      font-weight: 600;
-    }
-
-    .cycle-rebal {
-      font-size: 0.875rem;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    /* ===== Responsive ===== */
-    @media (max-width: 600px) {
-      header { padding: 18px 16px; }
-      main { padding: 20px 14px; }
-      .stat-value { font-size: 1.1rem; }
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solvent — the autonomous fund agent on Casper</title>
+  <meta name="description" content="Solvent is an AI agent that runs an on chain vault on Casper, pays for data and risk with real CEP-18 settlement, and rebalances itself live on testnet." />
+  <meta property="og:title" content="Solvent — autonomous fund agent on Casper" />
+  <meta property="og:description" content="An AI agent that runs an on chain vault and pays its own way. Live on Casper testnet." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header>
-    <h1><span>Solvent</span> &mdash; autonomous fund on Casper</h1>
-    <p>An AI agent that runs an on chain vault and pays its own way over x402.</p>
-    <span class="network-badge">Casper Testnet</span>
+  <div class="bg-glow"></div>
+
+  <nav>
+    <div class="nav-inner">
+      <a href="#top" class="brand">
+        <span class="brand-mark"></span>
+        Solvent
+      </a>
+      <div class="nav-links">
+        <a href="#loop">Live loop</a>
+        <a href="#how">How it works</a>
+        <a href="#proof">On chain proof</a>
+        <a class="nav-cta" href="https://github.com/Qwirlex/casper-solvent" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <header id="top" class="hero">
+    <div class="hero-inner">
+      <span class="badge"><span class="dot"></span> Live on Casper testnet</span>
+      <h1>The autonomous fund agent<br />that <span class="grad">pays its own way</span></h1>
+      <p class="lede">
+        Solvent runs an on chain vault on Casper. To decide each move it buys a price
+        feed and a risk score from other agents, settles every call with a real CEP-18
+        transfer, and signs its own rebalance. An agent as a real economic actor, earning
+        and spending value on chain.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#loop">Watch the loop</a>
+        <a class="btn btn-ghost" href="https://github.com/Qwirlex/casper-solvent" target="_blank" rel="noopener noreferrer">View source</a>
+      </div>
+      <div class="hero-stats" id="hero-stats">
+        <div class="hstat"><div class="hstat-num" id="hs-cycles">3</div><div class="hstat-label">decision cycles</div></div>
+        <div class="hstat"><div class="hstat-num">9</div><div class="hstat-label">on chain txns</div></div>
+        <div class="hstat"><div class="hstat-num">2</div><div class="hstat-label">contracts live</div></div>
+        <div class="hstat"><div class="hstat-num">x402</div><div class="hstat-label">payment rails</div></div>
+      </div>
+    </div>
   </header>
 
   <main>
-    <section>
-      <div class="section-heading">
-        <span class="dot"></span>
-        Current State
+    <section id="loop" class="section">
+      <div class="section-head">
+        <h2><span class="dot"></span> The economic loop</h2>
+        <p>Every cycle reads the market, pays for its inputs, decides, and rebalances. All on chain, all auditable.</p>
       </div>
-      <div id="current-state">Loading...</div>
+      <div id="current-state" class="panel">Loading live state…</div>
+      <h3 class="feed-title">Recent cycles</h3>
+      <div id="loop-feed" class="feed">Loading…</div>
     </section>
 
-    <section>
-      <div class="section-heading">Economic Loop</div>
-      <div id="loop-feed">Loading...</div>
+    <section id="how" class="section">
+      <div class="section-head">
+        <h2>How it works</h2>
+        <p>One decision cycle, six steps, the full economic loop of an agent.</p>
+      </div>
+      <div class="steps">
+        <div class="step"><span class="step-n">1</span><h4>Read the market</h4><p>The agent reads the vault and a price feed through CSPR.cloud on testnet.</p></div>
+        <div class="step"><span class="step-n">2</span><h4>Pay for data</h4><p>It buys the feed from the data agent and settles the fee with a real CEP-18 transfer.</p></div>
+        <div class="step"><span class="step-n">3</span><h4>Pay for risk</h4><p>It buys a risk score from the risk agent and settles that the same way.</p></div>
+        <div class="step"><span class="step-n">4</span><h4>Decide</h4><p>A bounded decision function picks the target allocation and Gemini narrates the reasoning.</p></div>
+        <div class="step"><span class="step-n">5</span><h4>Rebalance</h4><p>The agent signs and submits the rebalance to the vault. Only the agent key can move allocation.</p></div>
+        <div class="step"><span class="step-n">6</span><h4>Earn</h4><p>The vault skims a capped performance fee, the income side of a self funding agent.</p></div>
+      </div>
+      <p class="note">The HTTP 402 wrapper from the casper-x402 package sits on top of the same CEP-18 transfer, turning each priced call into a pay per request exchange with a cryptographic payment proof.</p>
+    </section>
+
+    <section id="proof" class="section">
+      <div class="section-head">
+        <h2>Proven on chain</h2>
+        <p>Casper 2.0, chain <code>casper-test</code>. Every transaction executed with no error.</p>
+      </div>
+
+      <div class="addr-grid">
+        <div class="addr-card">
+          <span class="addr-label">Agent account</span>
+          <a class="addr-val" href="https://testnet.cspr.live/account/02020f62f89d5d78d79eba973ed5a45556b1dd6e1a31c5fb9490f634394e1af1a7ad" target="_blank" rel="noopener noreferrer">02020f62…1af1a7ad</a>
+        </div>
+        <div class="addr-card">
+          <span class="addr-label">Pay token, CEP-18 sUSD</span>
+          <span class="addr-val mono">hash-77b6965b…59dd901e</span>
+        </div>
+        <div class="addr-card">
+          <span class="addr-label">Vault contract</span>
+          <span class="addr-val mono">hash-99abf040…b0638389</span>
+        </div>
+      </div>
+
+      <div class="tx-table">
+        <div class="tx-row tx-head"><span>Action</span><span>Transaction</span></div>
+        <a class="tx-row" href="https://testnet.cspr.live/transaction/b93f65452d45fe765ff7d9d1ae8c1f81fb2957e4786af9b8f7c5e48e9a348edd" target="_blank" rel="noopener noreferrer"><span>Install pay token</span><span class="mono">b93f6545…48edd ↗</span></a>
+        <a class="tx-row" href="https://testnet.cspr.live/transaction/5976ca27d3459dbbf6e71508d64fbc52bd17262bf6a845cdc6123113fc3e4c98" target="_blank" rel="noopener noreferrer"><span>Install vault</span><span class="mono">5976ca27…3e4c98 ↗</span></a>
+        <a class="tx-row" href="https://testnet.cspr.live/deploy/5cd4f504ab5d3d19883e6c5c306f49b06d8b614204b347a6997b0ffbfbca64f4" target="_blank" rel="noopener noreferrer"><span>Depositor funds the vault</span><span class="mono">5cd4f504…ca64f4 ↗</span></a>
+        <a class="tx-row" href="https://testnet.cspr.live/deploy/fca006ffc2ac638acf2db8824085cb85b14a7e1a2a4bba245b3417d670f6f207" target="_blank" rel="noopener noreferrer"><span>Agent rebalance</span><span class="mono">fca006ff…f6f207 ↗</span></a>
+        <a class="tx-row" href="https://testnet.cspr.live/deploy/2d1ba0b623771991644ff33f5803b04ee533bce25aa64788a47253f106623c4a" target="_blank" rel="noopener noreferrer"><span>Agent pays data agent, CEP-18</span><span class="mono">2d1ba0b6…6623c4a ↗</span></a>
+        <a class="tx-row" href="https://testnet.cspr.live/deploy/b54847456d0730be01356eb3e2f8539d24c83349034f6cf39870ec73634c26de" target="_blank" rel="noopener noreferrer"><span>Agent pays risk agent, CEP-18</span><span class="mono">b5484745…34c26de ↗</span></a>
+      </div>
+    </section>
+
+    <section id="tech" class="section">
+      <div class="section-head">
+        <h2>Built on</h2>
+      </div>
+      <div class="chips">
+        <span class="chip">Casper 2.0</span>
+        <span class="chip">Odra 2.8 · Rust</span>
+        <span class="chip">CEP-18</span>
+        <span class="chip">x402</span>
+        <span class="chip">casper-js-sdk 5</span>
+        <span class="chip">TypeScript</span>
+        <span class="chip">Gemini · Vertex</span>
+        <span class="chip">CSPR.cloud</span>
+      </div>
     </section>
   </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <span class="brand"><span class="brand-mark"></span> Solvent</span>
+        <p>An autonomous self funding fund agent. Built for the Casper Agentic Buildathon 2026.</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/Qwirlex/casper-solvent" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://testnet.cspr.live/account/02020f62f89d5d78d79eba973ed5a45556b1dd6e1a31c5fb9490f634394e1af1a7ad" target="_blank" rel="noopener noreferrer">Explorer</a>
+      </div>
+    </div>
+  </footer>
 
   <script src="app.js"></script>
 </body>

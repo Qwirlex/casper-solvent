@@ -3,17 +3,28 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "data-agent": "tsx src/dataAgent/server.ts",
+    "risk-agent": "tsx src/riskAgent/server.ts",
+    "fund-agent": "tsx src/fundAgent/index.ts",
+    "e2e": "tsx scripts/e2e-local.ts",
+    "demo": "tsx scripts/demo-run.ts"
   },
   "dependencies": {
-    "express": "^4",
-    "dotenv": "^16"
+    "@casper-ecosystem/casper-eip-712": "^1.2.1",
+    "@google/genai": "^2.10.0",
+    "@make-software/casper-x402": "^1.0.0",
+    "@x402/core": "^2.16.0",
+    "casper-js-sdk": "^5.0.12",
+    "dotenv": "^16",
+    "express": "^4"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "tsx": "^4",
-    "vitest": "^2",
     "@types/express": "^4",
-    "@types/node": "^20"
+    "@types/node": "^20",
+    "tsx": "^4",
+    "typescript": "^5",
+    "vitest": "^2"
   }
 }

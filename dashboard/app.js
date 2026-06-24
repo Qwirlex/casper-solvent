@@ -7,7 +7,8 @@ const SDK_URL = "https://esm.sh/casper-js-sdk@5.0.12";
 
 let activeKey = null;
 let sdkPromise = null;
-function sdk() { return (sdkPromise = sdkPromise || import(SDK_URL)); }
+// esm.sh bundles casper-js-sdk under a single default export, so unwrap it.
+function sdk() { return (sdkPromise = sdkPromise || import(SDK_URL).then((m) => m.default || m)); }
 
 const $ = (id) => document.getElementById(id);
 function fmt(motes) { return (Number(motes) / 1e9).toLocaleString("en-US", { maximumFractionDigits: 4 }); }

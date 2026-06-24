@@ -1,0 +1,50 @@
+[
+  {
+    "ts": 1750761000000,
+    "vaultAssets": "10000",
+    "allocationBefore": { "conservative": 100, "growth": 0 },
+    "feedPrice": 0.021,
+    "riskScore": 24,
+    "allocationAfter": { "conservative": 24, "growth": 76 },
+    "decisionRef": "risk-24-growth-76",
+    "reason": "risk 24, 24h move 5.00 percent maps to risk 24",
+    "x402Payments": [
+      { "label": "data-agent feed", "amount": "1000000000", "txHash": "aaa111bbb222ccc333ddd444eee555fff666000111222333444555666777888999aaa" },
+      { "label": "risk-agent score", "amount": "1000000000", "txHash": "bbb222ccc333ddd444eee555fff666000111222333444555666777888999aaa111bbb" }
+    ],
+    "feeHarvested": "50",
+    "rebalanceTxHash": "ccc333ddd444eee555fff666000111222333444555666777888999aaa111bbb222ccc"
+  },
+  {
+    "ts": 1750764600000,
+    "vaultAssets": "10950",
+    "allocationBefore": { "conservative": 24, "growth": 76 },
+    "feedPrice": 0.0228,
+    "riskScore": 41,
+    "allocationAfter": { "conservative": 41, "growth": 59 },
+    "decisionRef": "risk-41-growth-59",
+    "reason": "risk 41, 24h move 2.30 percent maps to moderate risk 41",
+    "x402Payments": [
+      { "label": "data-agent feed", "amount": "1000000000", "txHash": "ddd444eee555fff666000111222333444555666777888999aaa111bbb222ccc333ddd" },
+      { "label": "risk-agent score", "amount": "1000000000", "txHash": "eee555fff666000111222333444555666777888999aaa111bbb222ccc333ddd444eee" }
+    ],
+    "feeHarvested": "55",
+    "rebalanceTxHash": "fff666000111222333444555666777888999aaa111bbb222ccc333ddd444eee555fff"
+  },
+  {
+    "ts": 1750768200000,
+    "vaultAssets": "11200",
+    "allocationBefore": { "conservative": 41, "growth": 59 },
+    "feedPrice": 0.0235,
+    "riskScore": 67,
+    "allocationAfter": { "conservative": 67, "growth": 33 },
+    "decisionRef": "risk-67-growth-33",
+    "reason": "risk 67, 24h move -1.80 percent triggers risk-off shift to 67 conservative",
+    "x402Payments": [
+      { "label": "data-agent feed", "amount": "1000000000", "txHash": "000111222333444555666777888999aaa111bbb222ccc333ddd444eee555fff666000" },
+      { "label": "risk-agent score", "amount": "2000000000", "txHash": "111222333444555666777888999aaa111bbb222ccc333ddd444eee555fff666000111" }
+    ],
+    "feeHarvested": "58",
+    "rebalanceTxHash": "222333444555666777888999aaa111bbb222ccc333ddd444eee555fff666000111222"
+  }
+]

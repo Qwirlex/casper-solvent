@@ -1,0 +1,8 @@
+target/
+node_modules/
+.env.testnet
+*.pem
+dist/
+wasm/
+keys/
+loop-log.json

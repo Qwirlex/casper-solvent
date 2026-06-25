@@ -101,6 +101,10 @@ function onDisconnected() {
   if (sb) { sb.disabled = true; sb.textContent = "Connect wallet to sell"; }
 }
 
+// On reload CSPR.click reloads from the CDN and restores the session asynchronously,
+// which can take many seconds in IFRAME mode. The wallet is not reset, it is rehydrating.
+// Show a reconnecting state and poll for the restored account so it appears as soon as
+// it is ready, rather than only when the late signed_in event fires.
 function wireCsprClick() {
   const cc = window.csprclick;
   if (!cc) return;
@@ -111,7 +115,25 @@ function wireCsprClick() {
     cc.on("csprclick:switched_account", async () => { try { onConnected(await cc.getActivePublicKey()); } catch (e) { console.error(e); } });
     cc.on("csprclick:signed_out", onDisconnected);
   }
-  if (cc.getActivePublicKey) cc.getActivePublicKey().then((k) => { if (k) onConnected(k); }).catch(() => {});
+  restoreSession(cc);
+}
+
+async function restoreSession(cc) {
+  if (!cc.getActivePublicKey) return;
+  const btn = $("connect-btn");
+  const reconnecting = () => { btn.disabled = true; btn.textContent = "Reconnecting…"; };
+  reconnecting();
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    if (activeKey) return; // an event already connected us
+    try {
+      const k = await cc.getActivePublicKey();
+      if (k) { onConnected(k); return; }
+    } catch { /* not ready yet */ }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  // No saved session, show the normal connect button.
+  if (!activeKey) { btn.disabled = false; btn.textContent = "Connect wallet"; }
 }
 if (window.csprclick) wireCsprClick();
 else window.addEventListener("csprclick:loaded", wireCsprClick);

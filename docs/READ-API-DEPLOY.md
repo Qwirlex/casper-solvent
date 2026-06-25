@@ -76,7 +76,7 @@ for everything else. Do not touch the salescheduler or aegiscan blocks:
 ```
 caspersolvent.xyz, www.caspersolvent.xyz {
 	handle /api/* {
-		reverse_proxy localhost:4090
+		reverse_proxy 172.18.0.1:4090
 	}
 	handle {
 		root * /data/caspersolvent
@@ -85,6 +85,12 @@ caspersolvent.xyz, www.caspersolvent.xyz {
 	}
 }
 ```
+
+The upstream is 172.18.0.1:4090, not localhost. Caddy runs in a container, so localhost
+there is the container itself, not the host. 172.18.0.1 is the revertguard_default
+network gateway, which is the host as seen from the container, verified reachable from
+the caddy container. If the docker network is ever recreated and the gateway changes,
+read it with `docker inspect revertguard-caddy-1 --format '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}'`.
 
 Then recreate the caddy container so it rebinds the current Caddyfile:
 

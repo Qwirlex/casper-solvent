@@ -9,6 +9,8 @@ dotenv.config({ path: process.env.ENV_FILE ?? ".env.testnet" });
 export const config = {
   live: process.env.CASPER_LIVE === "1",
   node: process.env.CASPER_NODE ?? "",
+  // Public read node for state queries, no auth, no CORS issue server side.
+  readNode: process.env.CASPER_READ_NODE ?? "https://node.testnet.casper.network/rpc",
   chain: process.env.CASPER_CHAIN ?? "casper-test",
   csprCloudKey: process.env.CSPR_CLOUD_API_KEY ?? "",
   geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.5-flash",

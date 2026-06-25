@@ -4,6 +4,9 @@ const VAULT_PKG = "99abf0408b2c799aabf8b1b3d275d1117b0a2ca020657ec0f1fd4664b0638
 const CHAIN = "casper-test";
 const EXPLORER = "https://testnet.cspr.live/deploy/";
 const SDK_URL = "https://esm.sh/casper-js-sdk@5.0.12";
+// Read API base. Same origin behind the Caddy reverse_proxy at /api. Override for
+// local dev with window.SOLVENT_API.
+const API = (typeof window !== "undefined" && window.SOLVENT_API) || "";
 
 let activeKey = null;
 let sdkPromise = null;
@@ -27,6 +30,21 @@ function onConnected(key) {
   const d = $("deposit-btn"), w = $("withdraw-btn");
   d.disabled = false; d.textContent = "Deposit into vault";
   w.disabled = false; w.textContent = "Withdraw shares";
+  refreshShares();
+}
+
+// Read the connected account's real shares from chain through the read API. Falls
+// back silently if the API is unreachable, the optimistic value stays on screen.
+async function refreshShares() {
+  if (!activeKey) return;
+  try {
+    const r = await fetch(`${API}/api/shares/${activeKey}`);
+    if (!r.ok) return;
+    const { shares } = await r.json();
+    $("p-shares").textContent = fmt(shares);
+  } catch (e) {
+    console.warn("shares read", e);
+  }
 }
 function onDisconnected() {
   activeKey = null;
@@ -107,11 +125,13 @@ async function submitVaultCall(entryPoint, argName, amount, btn) {
     const hash =
       res.transactionHash || res.deployHash || res.deploy_hash ||
       cc.deploy_hash || cc.transaction_hash || cc.hash || capturedHash;
-    // Optimistically reflect the action in the position panel. The on chain state
-    // updates once the deploy executes, this gives immediate visible feedback.
+    // Optimistically reflect the action, then reconcile with real on chain shares
+    // once the deploy has had time to execute. The read API is the source of truth.
     const sharesEl = $("p-shares");
     const cur = parseFloat(sharesEl.textContent) || 0;
     sharesEl.textContent = String(entryPoint === "deposit" ? cur + amount : Math.max(0, cur - amount));
+    setTimeout(() => { refreshShares(); refreshVaultOnChain(); }, 14000);
+    setTimeout(() => { refreshShares(); refreshVaultOnChain(); }, 35000);
     if (hash && /^[0-9a-f]{60,}$/i.test(String(hash))) {
       showResult("ok", "Submitted on chain, pending confirmation.", EXPLORER + hash, "View transaction ↗");
     } else {
@@ -158,6 +178,23 @@ function renderVault(latest) {
   $("v-grow").textContent = a.growth + "%";
   $("v-allocbar").style.width = a.conservative + "%";
 }
+
+// Override the vault card with real on chain state from the read API. The agent feed
+// still comes from the loop log, but the headline numbers are read straight from the
+// vault contract so they are always the chain truth.
+async function refreshVaultOnChain() {
+  try {
+    const r = await fetch(`${API}/api/vault`);
+    if (!r.ok) return;
+    const v = await r.json();
+    $("v-assets").textContent = fmt(v.totalAssets) + " sUSD";
+    $("v-cons").textContent = v.allocation.conservative + "%";
+    $("v-grow").textContent = v.allocation.growth + "%";
+    $("v-allocbar").style.width = v.allocation.conservative + "%";
+  } catch (e) {
+    console.warn("vault read", e);
+  }
+}
 function renderFeed(cycles) {
   const feed = $("loop-feed"); feed.textContent = "";
   cycles.slice().reverse().forEach((c) => {
@@ -191,7 +228,10 @@ function renderFeed(cycles) {
 function loadFeed() {
   fetch("loop-log.json").then((r) => { if (!r.ok) throw 0; return r.json(); })
     .catch(() => fetch("sample-loop-log.json").then((r) => r.json()))
-    .then((data) => { if (data && data.length) { renderVault(data[data.length - 1]); renderFeed(data); } })
+    .then((data) => {
+      if (data && data.length) { renderVault(data[data.length - 1]); renderFeed(data); }
+      refreshVaultOnChain(); // chain truth overrides the headline numbers
+    })
     .catch((e) => console.error("feed", e));
 }
 loadFeed();

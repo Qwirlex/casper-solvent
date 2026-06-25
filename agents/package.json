@@ -8,6 +8,7 @@
     "data-agent": "tsx src/dataAgent/server.ts",
     "risk-agent": "tsx src/riskAgent/server.ts",
     "fund-agent": "tsx src/fundAgent/index.ts",
+    "web-api": "tsx src/webApi/server.ts",
     "e2e": "tsx scripts/e2e-local.ts",
     "demo": "tsx scripts/demo-run.ts"
   },
@@ -15,6 +16,7 @@
     "@casper-ecosystem/casper-eip-712": "^1.2.1",
     "@google/genai": "^2.10.0",
     "@make-software/casper-x402": "^1.0.0",
+    "@noble/hashes": "^1.8.0",
     "@x402/core": "^2.16.0",
     "casper-js-sdk": "^5.0.12",
     "dotenv": "^16",

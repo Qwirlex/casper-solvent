@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solvent — autonomous fund agent on Casper</title>
   <meta name="description" content="Connect your wallet, deposit into the Solvent vault on Casper, and let an autonomous AI agent manage the allocation. Live on testnet." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="apple-touch-icon" href="favicon.svg" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Solvent — autonomous fund agent on Casper" />
+  <meta property="og:description" content="An AI agent runs a savings vault on Casper. Buy sUSD, deposit, earn yield, withdraw anytime. Live on testnet." />
+  <meta property="og:url" content="https://caspersolvent.xyz" />
+  <meta property="og:image" content="https://caspersolvent.xyz/favicon.svg" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Solvent — autonomous fund agent on Casper" />
+  <meta name="twitter:description" content="An AI agent runs a savings vault on Casper. Buy sUSD, deposit, earn yield, withdraw anytime." />
+  <meta name="twitter:image" content="https://caspersolvent.xyz/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -63,16 +74,17 @@
 
   <main class="app">
     <div class="app-grid">
-      <!-- left: your position first, then vault + actions -->
+      <!-- left: your position + the vault -->
       <div class="col">
         <div class="card position-card">
-          <div class="card-head"><h2>Your position</h2></div>
+          <div class="card-head"><h2>Your position</h2><span class="rate-pill">1 CSPR = 10 sUSD</span></div>
           <div id="position-empty" class="muted">Connect a wallet to view and manage your position.</div>
           <div id="position-live" hidden>
             <div class="pos-row"><span>You deposited</span><span class="mono" id="p-deposited">0</span></div>
             <div class="pos-row earned"><span>You earned</span><span class="mono" id="p-earned">—</span></div>
             <div class="pos-row"><span>Your current value</span><span class="mono" id="p-value">—</span></div>
             <div class="pos-row"><span>Your share of the pool</span><span class="mono" id="p-share">—</span></div>
+            <div class="pos-row"><span>Wallet sUSD</span><span class="mono" id="w-susd">—</span></div>
             <div class="pos-row"><span>Wallet</span><span class="mono" id="p-wallet">—</span></div>
           </div>
         </div>
@@ -91,41 +103,29 @@
             <div class="vstat"><span class="vstat-label">Yield paid in</span><span class="vstat-val" id="v-yield">—</span></div>
           </div>
         </div>
+      </div>
 
-        <div class="card exchange-card">
-          <div class="card-head"><h2>Get sUSD</h2><span class="rate-pill">1 CSPR = 10 sUSD</span></div>
-          <div class="tabs">
-            <button class="xtab active" data-xtab="buy">Buy</button>
-            <button class="xtab" data-xtab="sell">Sell</button>
+      <!-- right: one action panel, then agent activity -->
+      <div class="col">
+        <div class="card action-card">
+          <div class="tabs four">
+            <button class="tab active" data-tab="buy">Buy</button>
+            <button class="tab" data-tab="deposit">Deposit</button>
+            <button class="tab" data-tab="withdraw">Withdraw</button>
+            <button class="tab" data-tab="sell">Sell</button>
           </div>
-          <div class="xtab-body" id="xtab-buy">
-            <label class="field-label">Spend CSPR</label>
+
+          <div class="tab-body" id="tab-buy">
+            <label class="field-label">Spend CSPR, get sUSD</label>
             <div class="amount-row">
               <input id="buy-amount" class="amount-input" type="number" min="0" step="0.1" placeholder="0.0" />
             </div>
             <div class="amount-hint" id="buy-hint"></div>
             <button id="buy-btn" class="btn btn-accent btn-block" disabled>Connect wallet to buy</button>
-            <p class="field-note">You send CSPR to the exchange and get sUSD back in your wallet at 1 CSPR to 10 sUSD. The exchange is run by the agent. If the button does not submit, send CSPR yourself to <span class="mono" id="treasury-addr">…</span>.</p>
+            <p class="field-note">Send test CSPR to the exchange and get sUSD back in your wallet at 1 CSPR to 10 sUSD, run by the agent. If the button does not submit, send CSPR yourself to <span class="mono" id="treasury-addr">…</span>. Then deposit the sUSD to earn yield.</p>
           </div>
-          <div class="xtab-body" id="xtab-sell" hidden>
-            <label class="field-label">Sell sUSD</label>
-            <div class="amount-row">
-              <input id="sell-amount" class="amount-input" type="number" min="0" step="0.1" placeholder="0.0" />
-            </div>
-            <div class="amount-hint" id="sell-hint"></div>
-            <button id="sell-btn" class="btn btn-block" disabled>Connect wallet to sell</button>
-            <p class="field-note">You send sUSD to the exchange and get CSPR back, minus a ten percent fee.</p>
-          </div>
-          <div class="pos-row" style="margin-top:6px"><span>Wallet sUSD</span><span class="mono" id="w-susd">—</span></div>
-          <div id="x-result" class="tx-result" hidden></div>
-        </div>
 
-        <div class="card action-card">
-          <div class="tabs">
-            <button class="tab active" data-tab="deposit">Deposit</button>
-            <button class="tab" data-tab="withdraw">Withdraw</button>
-          </div>
-          <div class="tab-body" id="tab-deposit">
+          <div class="tab-body" id="tab-deposit" hidden>
             <label class="field-label">Amount (sUSD)</label>
             <div class="amount-row">
               <input id="deposit-amount" class="amount-input" type="number" min="0" step="0.1" placeholder="0.0" />
@@ -138,8 +138,9 @@
               <button id="approve-btn" class="btn btn-block" disabled>1. Approve sUSD</button>
               <button id="deposit-btn" class="btn btn-accent btn-block" disabled>2. Deposit</button>
             </div>
-            <p class="field-note">The vault custodies your tokens on chain. Step one approves the vault to pull the amount, step two deposits and mints your shares. Deposit unlocks by itself once the approval is confirmed on chain, you do not need to time it. Both steps are signed by your wallet.</p>
+            <p class="field-note">The vault custodies your tokens on chain. Step one approves, step two deposits. Deposit unlocks by itself once the approval is confirmed, both steps are signed by your wallet.</p>
           </div>
+
           <div class="tab-body" id="tab-withdraw" hidden>
             <label class="field-label">Amount (sUSD)</label>
             <div class="amount-row">
@@ -148,14 +149,22 @@
             </div>
             <div class="amount-hint" id="withdraw-hint"></div>
             <button id="withdraw-btn" class="btn btn-block" disabled>Connect wallet to withdraw</button>
-            <p class="field-note">Withdraw any amount up to your balance, principal plus earned. The vault sends the tokens back to your wallet on chain.</p>
+            <p class="field-note">Withdraw any amount up to your balance, principal plus earned. The vault sends the tokens back on chain.</p>
           </div>
+
+          <div class="tab-body" id="tab-sell" hidden>
+            <label class="field-label">Sell sUSD, get CSPR</label>
+            <div class="amount-row">
+              <input id="sell-amount" class="amount-input" type="number" min="0" step="0.1" placeholder="0.0" />
+            </div>
+            <div class="amount-hint" id="sell-hint"></div>
+            <button id="sell-btn" class="btn btn-block" disabled>Connect wallet to sell</button>
+            <p class="field-note">Send sUSD to the exchange and get CSPR back, minus a ten percent fee.</p>
+          </div>
+
           <div id="tx-result" class="tx-result" hidden></div>
         </div>
-      </div>
 
-      <!-- right: agent activity -->
-      <div class="col">
         <div class="card agent-card">
           <div class="card-head"><h2>What the agent did</h2><span class="live"><span class="dot"></span> running on its own</span></div>
           <p class="muted small">Every few minutes the agent checks the market, decides how much of the pool to keep safe versus growth, adds yield, and writes it on chain. It can never take your money.</p>

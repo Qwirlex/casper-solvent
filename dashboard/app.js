@@ -130,7 +130,7 @@ function showResultIn(boxId, kind, text, linkUrl, linkLabel) {
   }
 }
 function showResult(kind, text, linkUrl, linkLabel) { showResultIn("tx-result", kind, text, linkUrl, linkLabel); }
-function showX(kind, text, linkUrl, linkLabel) { showResultIn("x-result", kind, text, linkUrl, linkLabel); }
+function showX(kind, text, linkUrl, linkLabel) { showResultIn("tx-result", kind, text, linkUrl, linkLabel); }
 
 // Build, sign and submit a contract call through CSPR.click. argsFn receives the SDK
 // CLValue and Key constructors and returns the runtime args map. Returns the captured
@@ -321,7 +321,7 @@ async function doSell() {
   const hash = await sendCall(
     PAY_TOKEN_PKG, "transfer",
     (CLValue, Key) => ({ recipient: CLValue.newCLKey(Key.newKey("account-hash-" + TREASURY)), amount: CLValue.newCLUInt256(motes) }),
-    $("sell-btn"), "Sell sent to your wallet, sign the sUSD transfer.", "x-result",
+    $("sell-btn"), "Sell sent to your wallet, sign the sUSD transfer.",
   );
   if (hash) {
     const cspr = ((v / BUY_RATE) * 0.9).toLocaleString("en-US", { maximumFractionDigits: 4 });
@@ -348,21 +348,13 @@ function updateXHint(which) {
 $("buy-amount").addEventListener("input", () => updateXHint("buy"));
 $("sell-amount").addEventListener("input", () => updateXHint("sell"));
 
-document.querySelectorAll(".xtab").forEach((t) => {
-  t.onclick = () => {
-    document.querySelectorAll(".xtab").forEach((x) => x.classList.remove("active"));
-    t.classList.add("active");
-    $("xtab-buy").hidden = t.dataset.xtab !== "buy";
-    $("xtab-sell").hidden = t.dataset.xtab !== "sell";
-  };
-});
-
+// One action panel, four tabs, Buy Deposit Withdraw Sell.
+const ACTION_TABS = ["buy", "deposit", "withdraw", "sell"];
 document.querySelectorAll(".tab").forEach((t) => {
   t.onclick = () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
     t.classList.add("active");
-    $("tab-deposit").hidden = t.dataset.tab !== "deposit";
-    $("tab-withdraw").hidden = t.dataset.tab !== "withdraw";
+    ACTION_TABS.forEach((name) => { const b = $("tab-" + name); if (b) b.hidden = t.dataset.tab !== name; });
   };
 });
 document.querySelectorAll(".chip-btn").forEach((c) => {

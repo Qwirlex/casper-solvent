@@ -63,8 +63,20 @@
 
   <main class="app">
     <div class="app-grid">
-      <!-- left: vault + actions -->
+      <!-- left: your position first, then vault + actions -->
       <div class="col">
+        <div class="card position-card">
+          <div class="card-head"><h2>Your position</h2></div>
+          <div id="position-empty" class="muted">Connect a wallet to view and manage your position.</div>
+          <div id="position-live" hidden>
+            <div class="pos-row"><span>You deposited</span><span class="mono" id="p-deposited">0</span></div>
+            <div class="pos-row earned"><span>You earned</span><span class="mono" id="p-earned">—</span></div>
+            <div class="pos-row"><span>Your current value</span><span class="mono" id="p-value">—</span></div>
+            <div class="pos-row"><span>Your share of the pool</span><span class="mono" id="p-share">—</span></div>
+            <div class="pos-row"><span>Wallet</span><span class="mono" id="p-wallet">—</span></div>
+          </div>
+        </div>
+
         <div class="card vault-card">
           <div class="card-head"><h2>The vault</h2><span class="live"><span class="dot"></span> live</span></div>
           <div class="vault-stats">
@@ -106,17 +118,6 @@
           </div>
           <div class="pos-row" style="margin-top:6px"><span>Wallet sUSD</span><span class="mono" id="w-susd">—</span></div>
           <div id="x-result" class="tx-result" hidden></div>
-        </div>
-
-        <div class="card position-card">
-          <div class="card-head"><h2>Your position</h2></div>
-          <div id="position-empty" class="muted">Connect a wallet to view and manage your position.</div>
-          <div id="position-live" hidden>
-            <div class="pos-row"><span>Deposited</span><span class="mono" id="p-deposited">0</span></div>
-            <div class="pos-row"><span>Current value</span><span class="mono" id="p-value">—</span></div>
-            <div class="pos-row earned"><span>Earned</span><span class="mono" id="p-earned">—</span></div>
-            <div class="pos-row"><span>Wallet</span><span class="mono" id="p-wallet">—</span></div>
-          </div>
         </div>
 
         <div class="card action-card">

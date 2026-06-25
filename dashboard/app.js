@@ -72,6 +72,16 @@ async function refreshPosition() {
     const el = $("p-earned");
     el.textContent = "+" + earned.toLocaleString("en-US", { maximumFractionDigits: 4 }) + ` sUSD (+${pct.toFixed(2)}%)`;
     el.classList.toggle("up", earned > 0);
+    // Your share of the whole pool, value over total assets.
+    try {
+      const vr = await fetch(`${API}/api/vault`);
+      if (vr.ok) {
+        const v = await vr.json();
+        const total = Number(v.totalAssets || 0);
+        const share = total > 0 ? (Number(p.value) / total) * 100 : 0;
+        $("p-share").textContent = share.toFixed(2) + "%";
+      }
+    } catch { /* ignore */ }
   } catch (e) {
     console.warn("position read", e);
   }

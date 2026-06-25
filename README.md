@@ -128,13 +128,31 @@ Agent account, the fund agent that signs every action:
 `02020f62f89d5d78d79eba973ed5a45556b1dd6e1a31c5fb9490f634394e1af1a7ad`,
 account hash `account-hash-c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383`.
 
-Contracts:
+Contracts, the live yield vault build:
 
-- Pay token, CEP-18 sUSD, package
-  `hash-77b6965b86199ef296953065c643661d67bb7f588d7b1b02c0444c2b59dd901e`
-- Vault, package
-  `hash-99abf0408b2c799aabf8b1b3d275d1117b0a2ca020657ec0f1fd4664b0638389`,
-  contract `contract-441c58d80c599df4f21688c657fa67c93eec381d52c0b0ebe88fbeceaad4679c`
+- Pay token, CEP-18 sUSD with approve and transfer_from, package
+  `hash-f7b25be95ff7c6ecb3518b2d8cd3fbad89949551661e99509f544673fe39ce59`
+- Vault, custody plus yield accrual, package
+  `hash-ef636b715136655ffe4796aeb8e221ce236710f0dcf08c163f85cd39a8397711`
+
+The vault custodies deposits on chain. A depositor approves the vault, deposits and
+receives shares, the agent accrues yield from an emissions reserve each cycle which
+raises assets per share, and withdraw returns the principal plus the earned yield.
+Real yield proof on chain, all executed with no error:
+
+| Step | Hash |
+| --- | --- |
+| Install pay token v2 | `2a49934a247a5afb7272ca3b35341579aa0ba5ebee45c0ac3da5c509dcedcac3` |
+| Install vault v2 | `36966cf13e7894598166fe7b8e82f91f2239f0f68f9198f375c5e67dea2217a8` |
+| Approve vault | `c148985a0eb19260cbb50abf1569c7e1da7ab43f4ca06b1c4a60e3c3de7bfc05` |
+| Deposit, 100 sUSD | `0b79ef5f4b49fe2a430a365ac82548b4064a0e613619557eec9bd6194d17039a` |
+| Accrue yield, 8 sUSD | `5d0f246e58a1bbcd164a23057f42442b711d120d0f60431abdc23c1798bb71c9` |
+
+After accrual the assets per share is 1.08, an 8 percent gain for every depositor.
+
+The earlier non custodial build is superseded, its pay token was
+`hash-77b6965b86199ef296953065c643661d67bb7f588d7b1b02c0444c2b59dd901e` and vault
+`hash-99abf0408b2c799aabf8b1b3d275d1117b0a2ca020657ec0f1fd4664b0638389`.
 
 Proof transactions:
 

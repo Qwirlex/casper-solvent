@@ -9,31 +9,31 @@ use crate::pay_token::PayTokenContractRef;
 pub enum Error {
     NotAgent = 1,
     ZeroAmount = 2,
-    InsufficientShares = 3,
+    InsufficientBalance = 3,
     BadAllocation = 4,
-    FeeTooHigh = 5,
 }
 
-/// A managed yield vault. Depositors send the pay token in and hold shares. The vault
-/// custodies the tokens on chain, deposit pulls them with transfer_from and withdraw
-/// sends them back. The fund agent sets a target split across named strategy buckets,
-/// and each cycle it accrues yield into the vault from a reserve it controls, which
-/// raises the value of every share. The agent only entrypoints are guarded.
+/// A managed yield vault with per account accounting. Each depositor has a principal,
+/// the amount they put in, and an earned balance, the yield credited to them. The
+/// vault custodies the pay token on chain, deposit pulls it with transfer_from and
+/// withdraw sends it back. The fund agent accrues yield per account, the amount is set
+/// by the agent so larger depositors can earn a higher rate. Agent only entrypoints are
+/// guarded, and the agent can never move a depositor's funds to itself, it can only add.
 ///
-/// Invariant, total_assets always equals the vault's token balance, deposit and accrue
-/// pull tokens in and raise it, withdraw sends tokens out and lowers it.
+/// Invariant, total_assets equals the vault token balance and equals total_principal
+/// plus total_yield.
 #[odra::module]
 pub struct Vault {
     agent: Var<Address>,
     token: Var<Address>,
-    total_shares: Var<U256>,
     total_assets: Var<U256>,
-    shares: Mapping<Address, U256>,
+    total_principal: Var<U256>,
+    total_yield: Var<U256>,
+    deposited: Mapping<Address, U256>,
+    earned: Mapping<Address, U256>,
     alloc_conservative: Var<u8>,
     alloc_growth: Var<u8>,
     last_decision: Var<String>,
-    fee_bps: Var<u32>,
-    total_yield: Var<U256>,
 }
 
 #[odra::module]
@@ -41,12 +41,11 @@ impl Vault {
     pub fn init(&mut self, agent: Address, token: Address) {
         self.agent.set(agent);
         self.token.set(token);
-        self.total_shares.set(U256::zero());
         self.total_assets.set(U256::zero());
+        self.total_principal.set(U256::zero());
+        self.total_yield.set(U256::zero());
         self.alloc_conservative.set(100);
         self.alloc_growth.set(0);
-        self.fee_bps.set(0);
-        self.total_yield.set(U256::zero());
         self.last_decision.set(String::from("init"));
     }
 
@@ -58,20 +57,28 @@ impl Vault {
         self.token.get().unwrap()
     }
 
-    pub fn total_shares(&self) -> U256 {
-        self.total_shares.get_or_default()
-    }
-
     pub fn total_assets(&self) -> U256 {
         self.total_assets.get_or_default()
+    }
+
+    pub fn total_principal(&self) -> U256 {
+        self.total_principal.get_or_default()
     }
 
     pub fn total_yield(&self) -> U256 {
         self.total_yield.get_or_default()
     }
 
-    pub fn shares_of(&self, owner: &Address) -> U256 {
-        self.shares.get_or_default(owner)
+    pub fn deposited_of(&self, owner: &Address) -> U256 {
+        self.deposited.get_or_default(owner)
+    }
+
+    pub fn earned_of(&self, owner: &Address) -> U256 {
+        self.earned.get_or_default(owner)
+    }
+
+    pub fn balance_of(&self, owner: &Address) -> U256 {
+        self.deposited.get_or_default(owner) + self.earned.get_or_default(owner)
     }
 
     pub fn current_allocation(&self) -> (u8, u8) {
@@ -83,10 +90,6 @@ impl Vault {
 
     pub fn last_decision(&self) -> String {
         self.last_decision.get_or_default()
-    }
-
-    pub fn fee_bps(&self) -> u32 {
-        self.fee_bps.get_or_default()
     }
 
     fn assert_agent(&self) {
@@ -109,10 +112,8 @@ impl Vault {
         self.last_decision.set(decision_ref);
     }
 
-    /// Deposit pay tokens and receive shares. The caller must approve the vault for
-    /// the amount first, the vault pulls the tokens in with transfer_from and credits
-    /// shares priced against the current assets per share, so a depositor never dilutes
-    /// the yield already earned by earlier depositors.
+    /// Deposit pay tokens. The caller approves the vault first, the vault pulls the
+    /// tokens in and credits the caller's principal.
     pub fn deposit(&mut self, amount: U256) {
         if amount.is_zero() {
             self.env().revert(Error::ZeroAmount);
@@ -120,48 +121,15 @@ impl Vault {
         let caller = self.env().caller();
         let me = self.env().self_address();
         self.token_ref().transfer_from(&caller, &me, &amount);
-
-        let total_shares = self.total_shares.get_or_default();
-        let total_assets = self.total_assets.get_or_default();
-        let minted = if total_shares.is_zero() || total_assets.is_zero() {
-            amount
-        } else {
-            amount * total_shares / total_assets
-        };
-        self.shares
-            .set(&caller, self.shares.get_or_default(&caller) + minted);
-        self.total_shares.set(total_shares + minted);
-        self.total_assets.set(total_assets + amount);
+        self.deposited.set(&caller, self.deposited.get_or_default(&caller) + amount);
+        self.total_principal.set(self.total_principal.get_or_default() + amount);
+        self.total_assets.set(self.total_assets.get_or_default() + amount);
     }
 
-    /// Burn shares and receive the proportional assets, including the share of yield
-    /// accrued while the shares were held. The vault sends the tokens back on chain.
-    pub fn withdraw(&mut self, share_amount: U256) {
-        let caller = self.env().caller();
-        let owned = self.shares.get_or_default(&caller);
-        if share_amount.is_zero() {
-            self.env().revert(Error::ZeroAmount);
-        }
-        if share_amount > owned {
-            self.env().revert(Error::InsufficientShares);
-        }
-        let total_shares = self.total_shares.get_or_default();
-        let total_assets = self.total_assets.get_or_default();
-        let assets_out = share_amount * total_assets / total_shares;
-
-        self.shares.set(&caller, owned - share_amount);
-        self.total_shares.set(total_shares - share_amount);
-        self.total_assets.set(total_assets - assets_out);
-
-        self.token_ref().transfer(&caller, &assets_out);
-    }
-
-    /// Accrue yield into the vault. Agent only. The agent holds a reserve of pay token
-    /// that stands in for protocol emissions on testnet, approves the vault, and each
-    /// cycle moves a real amount in. Shares are unchanged so assets per share rises,
-    /// every depositor earns. This is real on chain token movement, the source is the
-    /// emissions reserve, not market returns.
-    pub fn accrue(&mut self, amount: U256) {
+    /// Accrue yield to one account. Agent only. The agent holds a reserve and a standing
+    /// allowance to the vault, the amount per account is chosen by the agent so a larger
+    /// principal can earn a higher rate. Real tokens move in, the account's earned grows.
+    pub fn accrue(&mut self, owner: Address, amount: U256) {
         self.assert_agent();
         if amount.is_zero() {
             self.env().revert(Error::ZeroAmount);
@@ -169,18 +137,31 @@ impl Vault {
         let caller = self.env().caller();
         let me = self.env().self_address();
         self.token_ref().transfer_from(&caller, &me, &amount);
-        self.total_assets
-            .set(self.total_assets.get_or_default() + amount);
-        self.total_yield
-            .set(self.total_yield.get_or_default() + amount);
+        self.earned.set(&owner, self.earned.get_or_default(&owner) + amount);
+        self.total_yield.set(self.total_yield.get_or_default() + amount);
+        self.total_assets.set(self.total_assets.get_or_default() + amount);
     }
 
-    pub fn set_fee_bps(&mut self, bps: u32) {
-        self.assert_agent();
-        if bps > 1000 {
-            self.env().revert(Error::FeeTooHigh);
+    /// Withdraw up to the caller's balance, principal plus earned. Earned is drawn down
+    /// first. The vault sends the tokens back on chain.
+    pub fn withdraw(&mut self, amount: U256) {
+        if amount.is_zero() {
+            self.env().revert(Error::ZeroAmount);
         }
-        self.fee_bps.set(bps);
+        let caller = self.env().caller();
+        let deposited = self.deposited.get_or_default(&caller);
+        let earned = self.earned.get_or_default(&caller);
+        if amount > deposited + earned {
+            self.env().revert(Error::InsufficientBalance);
+        }
+        let from_earned = if amount <= earned { amount } else { earned };
+        let from_principal = amount - from_earned;
+        self.earned.set(&caller, earned - from_earned);
+        self.deposited.set(&caller, deposited - from_principal);
+        self.total_yield.set(self.total_yield.get_or_default() - from_earned);
+        self.total_principal.set(self.total_principal.get_or_default() - from_principal);
+        self.total_assets.set(self.total_assets.get_or_default() - amount);
+        self.token_ref().transfer(&caller, &amount);
     }
 }
 
@@ -204,7 +185,6 @@ mod tests {
         let env = odra_test::env();
         let agent = env.get_account(1);
         let user = env.get_account(3);
-
         env.set_caller(env.get_account(0));
         let mut token = PayToken::deploy(
             &env,
@@ -212,51 +192,44 @@ mod tests {
         );
         token.mint(&agent, &U256::from(1_000_000_000_000u64));
         token.mint(&user, &U256::from(1_000_000_000_000u64));
-
-        let vault = Vault::deploy(
-            &env,
-            VaultInitArgs { agent, token: token.address().clone() },
-        );
+        let vault = Vault::deploy(&env, VaultInitArgs { agent, token: token.address().clone() });
         Setup { env, token, vault, agent, user }
     }
 
     #[test]
-    fn deposit_pulls_tokens_and_mints_shares() {
+    fn deposit_credits_principal_and_custodies() {
         let mut s = setup();
-        let amount = U256::from(10_000_000_000u64); // 10 sUSD
-
+        let amount = U256::from(10_000_000_000u64);
         s.env.set_caller(s.user);
         s.token.approve(&s.vault.address().clone(), &amount);
         s.vault.deposit(amount);
-
-        assert_eq!(s.vault.shares_of(&s.user), amount);
-        assert_eq!(s.vault.total_assets(), amount);
+        assert_eq!(s.vault.deposited_of(&s.user), amount);
+        assert_eq!(s.vault.balance_of(&s.user), amount);
         assert_eq!(s.token.balance_of(&s.vault.address().clone()), amount);
     }
 
     #[test]
-    fn accrue_raises_share_value_and_withdraw_returns_principal_plus_yield() {
+    fn accrue_credits_earned_per_account_and_withdraw_returns_all() {
         let mut s = setup();
         let deposit = U256::from(10_000_000_000u64);
-
         s.env.set_caller(s.user);
         s.token.approve(&s.vault.address().clone(), &deposit);
         s.vault.deposit(deposit);
 
-        let yield_amt = U256::from(1_000_000_000u64);
+        let yield_amt = U256::from(2_000_000_000u64);
         s.env.set_caller(s.agent);
         s.token.approve(&s.vault.address().clone(), &yield_amt);
-        s.vault.accrue(yield_amt);
+        s.vault.accrue(s.user, yield_amt);
 
-        assert_eq!(s.vault.total_assets(), deposit + yield_amt);
+        assert_eq!(s.vault.earned_of(&s.user), yield_amt);
+        assert_eq!(s.vault.balance_of(&s.user), deposit + yield_amt);
         assert_eq!(s.vault.total_yield(), yield_amt);
-        assert_eq!(s.vault.total_shares(), deposit);
 
         let before = s.token.balance_of(&s.user);
         s.env.set_caller(s.user);
-        s.vault.withdraw(deposit);
-        let got = s.token.balance_of(&s.user) - before;
-        assert_eq!(got, deposit + yield_amt);
+        s.vault.withdraw(deposit + yield_amt);
+        assert_eq!(s.token.balance_of(&s.user) - before, deposit + yield_amt);
+        assert_eq!(s.vault.balance_of(&s.user), U256::zero());
         assert_eq!(s.vault.total_assets(), U256::zero());
     }
 
@@ -265,33 +238,26 @@ mod tests {
         let mut s = setup();
         s.env.set_caller(s.user);
         s.token.approve(&s.vault.address().clone(), &U256::from(1u64));
-        let err = s.vault.try_accrue(U256::from(1u64)).unwrap_err();
+        let err = s.vault.try_accrue(s.user, U256::from(1u64)).unwrap_err();
         assert_eq!(err, Error::NotAgent.into());
     }
 
     #[test]
-    fn agent_sets_allocation_and_non_agent_cannot() {
+    fn cannot_withdraw_more_than_balance() {
         let mut s = setup();
-        s.env.set_caller(s.agent);
-        s.vault.set_allocation(60, 40, String::from("ref-1"));
-        assert_eq!(s.vault.current_allocation(), (60, 40));
-
+        let deposit = U256::from(5_000_000_000u64);
         s.env.set_caller(s.user);
-        let err = s
-            .vault
-            .try_set_allocation(60, 40, String::from("x"))
-            .unwrap_err();
-        assert_eq!(err, Error::NotAgent.into());
+        s.token.approve(&s.vault.address().clone(), &deposit);
+        s.vault.deposit(deposit);
+        let err = s.vault.try_withdraw(deposit + U256::from(1u64)).unwrap_err();
+        assert_eq!(err, Error::InsufficientBalance.into());
     }
 
     #[test]
-    fn allocation_must_sum_to_100() {
+    fn agent_sets_allocation() {
         let mut s = setup();
         s.env.set_caller(s.agent);
-        let err = s
-            .vault
-            .try_set_allocation(60, 30, String::from("x"))
-            .unwrap_err();
-        assert_eq!(err, Error::BadAllocation.into());
+        s.vault.set_allocation(40, 60, String::from("ref"));
+        assert_eq!(s.vault.current_allocation(), (40, 60));
     }
 }

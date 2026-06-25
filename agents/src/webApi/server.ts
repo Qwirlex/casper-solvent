@@ -1,8 +1,29 @@
 import express from "express";
 import type { Server } from "node:http";
 import { fileURLToPath } from "node:url";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { config } from "../shared/config.js";
 import { VaultReader } from "../shared/vaultReader.js";
+
+// Depositor registry, a small file the agent reads to know whom to accrue yield to.
+// The dApp posts an address after a deposit. No enumeration on chain needed.
+const DEPOSITORS_FILE = process.env.DEPOSITORS_FILE ?? "./depositors.json";
+function readDepositors(): string[] {
+  try {
+    if (!existsSync(DEPOSITORS_FILE)) return [];
+    const a = JSON.parse(readFileSync(DEPOSITORS_FILE, "utf8"));
+    return Array.isArray(a) ? a : [];
+  } catch {
+    return [];
+  }
+}
+function addDepositor(account: string): void {
+  const list = readDepositors();
+  if (!list.includes(account)) {
+    list.push(account);
+    writeFileSync(DEPOSITORS_FILE, JSON.stringify(list, null, 2));
+  }
+}
 
 // Public read API for the dApp. The browser cannot read Casper state directly, the
 // public node sends no CORS headers and the authenticated node needs a secret key. So
@@ -15,15 +36,30 @@ export function startWebApi(port: number = PORT): Server {
   const app = express();
   const reader = new VaultReader({ node: config.readNode, packageHash: config.vaultHash });
 
-  // Permissive CORS, this endpoint is public read only.
+  // Permissive CORS, this endpoint is public read only except the depositor register.
   app.use((_req, res, next) => {
     res.setHeader("access-control-allow-origin", "*");
-    res.setHeader("access-control-allow-methods", "GET, OPTIONS");
+    res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
+    res.setHeader("access-control-allow-headers", "content-type");
     res.setHeader("cache-control", "no-store");
     next();
   });
+  app.options("*", (_req, res) => res.sendStatus(204));
+  app.use(express.json());
 
   app.get("/api/health", (_req, res) => res.json({ ok: true, service: "web-api" }));
+
+  // Register a depositor so the agent accrues yield to them. Harmless if spammed, the
+  // agent only accrues to addresses that actually hold a principal.
+  app.post("/api/depositor", (req, res) => {
+    const account = String(req.body?.account ?? "").trim();
+    if (!/^0[12][0-9a-fA-F]{64,66}$/.test(account) && !account.startsWith("account-hash-")) {
+      return res.status(400).json({ error: "bad account" });
+    }
+    addDepositor(account);
+    res.json({ ok: true });
+  });
+  app.get("/api/depositors", (_req, res) => res.json(readDepositors()));
 
   app.get("/api/vault", async (_req, res) => {
     try {
@@ -36,7 +72,7 @@ export function startWebApi(port: number = PORT): Server {
   app.get("/api/shares/:account", async (req, res) => {
     try {
       const pos = await reader.position(req.params.account);
-      res.json({ account: req.params.account, shares: pos.shares, value: pos.value, earned: pos.earned });
+      res.json({ account: req.params.account, deposited: pos.deposited, earned: pos.earned, value: pos.value });
     } catch (e) {
       res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
     }

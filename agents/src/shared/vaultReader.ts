@@ -11,23 +11,22 @@ const { PublicKey } = casper;
 // and mapping_data is the serialized Mapping key, empty for a plain Var. Field indices
 // start at 1 in struct order.
 //
-// Vault fields, in order: 1 agent, 2 token, 3 total_shares, 4 total_assets,
-// 5 shares (Mapping), 6 alloc_conservative, 7 alloc_growth, 8 last_decision, 9 fee_bps.
+// Vault fields, per account model, in order: 1 agent, 2 token, 3 total_assets,
+// 4 total_principal, 5 total_yield, 6 deposited (Mapping), 7 earned (Mapping),
+// 8 alloc_conservative, 9 alloc_growth, 10 last_decision.
 
 const FIELD = {
   agent: 1,
   token: 2,
-  totalShares: 3,
-  totalAssets: 4,
-  shares: 5,
-  allocConservative: 6,
-  allocGrowth: 7,
-  lastDecision: 8,
-  feeBps: 9,
-  totalYield: 10,
+  totalAssets: 3,
+  totalPrincipal: 4,
+  totalYield: 5,
+  deposited: 6,
+  earned: 7,
+  allocConservative: 8,
+  allocGrowth: 9,
+  lastDecision: 10,
 } as const;
-
-const ONE = 1_000_000_000n; // 1 share at 9 decimals, the price scale
 
 export interface VaultReaderConfig {
   node: string; // RPC url, e.g. https://node.testnet.casper.network/rpc
@@ -36,20 +35,16 @@ export interface VaultReaderConfig {
 
 export interface VaultSummary {
   totalAssets: string;
-  totalShares: string;
+  totalPrincipal: string;
   totalYield: string;
-  // Assets per share, scaled by 1e9. 1e9 means one to one, 1.08e9 means each share is
-  // worth 1.08 of the asset, an 8 percent gain over a one to one deposit.
-  sharePrice: string;
   allocation: { conservative: number; growth: number };
   lastDecision: string;
-  feeBps: number;
 }
 
 export interface Position {
-  shares: string; // raw shares, 9 decimals
-  value: string; // current redeemable assets, raw, 9 decimals
-  earned: string; // the holder's share of accrued yield, raw, 9 decimals
+  deposited: string; // principal the account put in, raw, 9 decimals
+  earned: string; // yield credited to the account, raw, 9 decimals
+  value: string; // deposited plus earned, what the account can withdraw, raw
 }
 
 let rpcId = 0;
@@ -128,63 +123,52 @@ export class VaultReader {
   async summary(): Promise<VaultSummary> {
     const srh = await this.stateRootHash();
     const seed = await this.resolveStateUref(srh);
-    const [ta, ts, ty, ac, ag, ld, fb] = await Promise.all([
+    const [ta, tp, ty, ac, ag, ld] = await Promise.all([
       this.readVar(srh, seed, FIELD.totalAssets),
-      this.readVar(srh, seed, FIELD.totalShares),
+      this.readVar(srh, seed, FIELD.totalPrincipal),
       this.readVar(srh, seed, FIELD.totalYield),
       this.readVar(srh, seed, FIELD.allocConservative),
       this.readVar(srh, seed, FIELD.allocGrowth),
       this.readVar(srh, seed, FIELD.lastDecision),
-      this.readVar(srh, seed, FIELD.feeBps),
     ]);
-    const totalAssets = BigInt(decodeU256(ta));
-    const totalShares = BigInt(decodeU256(ts));
-    const sharePrice = totalShares > 0n ? (totalAssets * ONE) / totalShares : ONE;
     return {
-      totalAssets: totalAssets.toString(),
-      totalShares: totalShares.toString(),
+      totalAssets: decodeU256(ta),
+      totalPrincipal: decodeU256(tp),
       totalYield: decodeU256(ty),
-      sharePrice: sharePrice.toString(),
       allocation: { conservative: decodeU8(ac), growth: decodeU8(ag) },
       lastDecision: decodeString(ld),
-      feeBps: decodeU32(fb),
     };
   }
 
-  // Shares for an owner, given a public key hex or an account hash.
-  async sharesOf(accountInput: string): Promise<string> {
-    const srh = await this.stateRootHash();
-    const seed = await this.resolveStateUref(srh);
-    return this.readSharesAt(srh, seed, accountInput);
-  }
-
-  private async readSharesAt(srh: string, seed: string, accountInput: string): Promise<string> {
+  private async readMappingU256(
+    srh: string,
+    seed: string,
+    fieldIndex: number,
+    accountInput: string,
+  ): Promise<string> {
     const accountHash = toAccountHash(accountInput);
     const mappingData = Buffer.concat([Buffer.from([0x00]), Buffer.from(accountHash, "hex")]);
-    const bytes = await this.readItem(srh, seed, this.itemKey(FIELD.shares, mappingData));
-    return decodeU256(bytes);
+    return decodeU256(await this.readItem(srh, seed, this.itemKey(fieldIndex, mappingData)));
   }
 
-  // A holder's shares, their current redeemable value, and their share of the yield.
-  // Value is shares times assets per share. Earned is the holder's proportional slice
-  // of the total yield ever accrued, shares over total shares times total yield, which
-  // needs no off chain cost basis and is read straight from the contract.
+  // An account's principal, earned yield, and total value, all read straight from the
+  // per account mappings on chain.
   async position(accountInput: string): Promise<Position> {
     const srh = await this.stateRootHash();
     const seed = await this.resolveStateUref(srh);
-    const [sharesStr, taStr, tsStr, tyStr] = await Promise.all([
-      this.readSharesAt(srh, seed, accountInput),
-      this.readVar(srh, seed, FIELD.totalAssets).then(decodeU256),
-      this.readVar(srh, seed, FIELD.totalShares).then(decodeU256),
-      this.readVar(srh, seed, FIELD.totalYield).then(decodeU256),
+    const [depStr, earnStr] = await Promise.all([
+      this.readMappingU256(srh, seed, FIELD.deposited, accountInput),
+      this.readMappingU256(srh, seed, FIELD.earned, accountInput),
     ]);
-    const shares = BigInt(sharesStr);
-    const totalAssets = BigInt(taStr);
-    const totalShares = BigInt(tsStr);
-    const totalYield = BigInt(tyStr);
-    const value = totalShares > 0n ? (shares * totalAssets) / totalShares : 0n;
-    const earned = totalShares > 0n ? (shares * totalYield) / totalShares : 0n;
-    return { shares: shares.toString(), value: value.toString(), earned: earned.toString() };
+    const value = (BigInt(depStr) + BigInt(earnStr)).toString();
+    return { deposited: depStr, earned: earnStr, value };
+  }
+
+  // The account's principal, used by the agent to pick a yield tier.
+  async depositedOf(accountInput: string): Promise<string> {
+    const srh = await this.stateRootHash();
+    const seed = await this.resolveStateUref(srh);
+    return this.readMappingU256(srh, seed, FIELD.deposited, accountInput);
   }
 }
 

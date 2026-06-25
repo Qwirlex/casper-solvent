@@ -66,21 +66,35 @@ async function main(): Promise<void> {
       .from(priv.publicKey)
       .buildFor1_5();
 
-  const vaultCall = (entry: string, amount: string) =>
+  const deposit = (amount: string) =>
     new ContractCallBuilder()
       .byPackageHash(vaultPkg)
-      .entryPoint(entry)
+      .entryPoint("deposit")
       .runtimeArgs(Args.fromMap({ amount: CLValue.newCLUInt256(amount) }))
       .payment(5_000_000_000)
       .chainName(config.chain)
       .from(priv.publicKey)
       .buildFor1_5();
 
+  // accrue is per account now, owner plus amount.
+  const agentAcct = `account-hash-${priv.publicKey.accountHash().toHex().replace(/^account-hash-/, "")}`;
+  const accrue = (amount: string) =>
+    new ContractCallBuilder()
+      .byPackageHash(vaultPkg)
+      .entryPoint("accrue")
+      .runtimeArgs(
+        Args.fromMap({ owner: CLValue.newCLKey(Key.newKey(agentAcct)), amount: CLValue.newCLUInt256(amount) }),
+      )
+      .payment(5_000_000_000)
+      .chainName(config.chain)
+      .from(priv.publicKey)
+      .buildFor1_5();
+
   console.log(`seeding vault ${vaultPkg} with token ${payPkg}`);
-  await submit("approve for deposit", () => approve(DEPOSIT));
-  await submit("deposit", () => vaultCall("deposit", DEPOSIT));
-  await submit("approve for accrue", () => approve(YIELD));
-  await submit("accrue", () => vaultCall("accrue", YIELD));
+  // One big standing allowance covers the deposit and many future accruals.
+  await submit("standing approve", () => approve("100000000000000"));
+  await submit("deposit", () => deposit(DEPOSIT));
+  await submit("accrue", () => accrue(YIELD));
   console.log("seed complete");
 }
 

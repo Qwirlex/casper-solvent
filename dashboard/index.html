@@ -75,7 +75,7 @@
           <div class="alloc-bar-rail"><div class="alloc-bar-fill" id="v-allocbar" style="width:0%"></div></div>
           <div class="alloc-legend"><span><i class="sw cons"></i> Conservative</span><span><i class="sw grow"></i> Growth</span></div>
           <div class="yield-row">
-            <div class="vstat"><span class="vstat-label">Assets per share</span><span class="vstat-val" id="v-price">—</span></div>
+            <div class="vstat"><span class="vstat-label">Total deposited</span><span class="vstat-val" id="v-principal">—</span></div>
             <div class="vstat"><span class="vstat-label">Yield paid in</span><span class="vstat-val" id="v-yield">—</span></div>
           </div>
         </div>
@@ -84,7 +84,7 @@
           <div class="card-head"><h2>Your position</h2></div>
           <div id="position-empty" class="muted">Connect a wallet to view and manage your position.</div>
           <div id="position-live" hidden>
-            <div class="pos-row"><span>Your shares</span><span class="mono" id="p-shares">0</span></div>
+            <div class="pos-row"><span>Deposited</span><span class="mono" id="p-deposited">0</span></div>
             <div class="pos-row"><span>Current value</span><span class="mono" id="p-value">—</span></div>
             <div class="pos-row earned"><span>Earned</span><span class="mono" id="p-earned">—</span></div>
             <div class="pos-row"><span>Wallet</span><span class="mono" id="p-wallet">—</span></div>
@@ -112,14 +112,14 @@
             <p class="field-note">The vault custodies your tokens on chain. Step one approves the vault to pull the amount, step two deposits and mints your shares. Deposit unlocks by itself once the approval is confirmed on chain, you do not need to time it. Both steps are signed by your wallet.</p>
           </div>
           <div class="tab-body" id="tab-withdraw" hidden>
-            <label class="field-label">Shares to withdraw</label>
+            <label class="field-label">Amount (sUSD)</label>
             <div class="amount-row">
               <input id="withdraw-amount" class="amount-input" type="number" min="0" step="0.1" placeholder="0.0" />
               <button class="chip-btn" data-fill="withdraw" data-val="all">Max</button>
             </div>
             <div class="amount-hint" id="withdraw-hint"></div>
             <button id="withdraw-btn" class="btn btn-block" disabled>Connect wallet to withdraw</button>
-            <p class="field-note">Withdraw burns your shares and returns the proportional assets, signed by your wallet.</p>
+            <p class="field-note">Withdraw any amount up to your balance, principal plus earned. The vault sends the tokens back to your wallet on chain.</p>
           </div>
           <div id="tx-result" class="tx-result" hidden></div>
         </div>

@@ -1,6 +1,6 @@
 // Solvent dApp front end. CSPR.click handles multi wallet connect, signing and
 // submission. casper-js-sdk builds the vault deposit and withdraw transactions.
-const VAULT_PKG = "ef636b715136655ffe4796aeb8e221ce236710f0dcf08c163f85cd39a8397711";
+const VAULT_PKG = "ce214af4e290a0bbac67c80040c78acd8ba42b30bce315593ae7666411854bc8";
 const PAY_TOKEN_PKG = "f7b25be95ff7c6ecb3518b2d8cd3fbad89949551661e99509f544673fe39ce59";
 const CHAIN = "casper-test";
 const EXPLORER = "https://testnet.cspr.live/deploy/";
@@ -44,12 +44,11 @@ async function refreshPosition() {
     const r = await fetch(`${API}/api/shares/${activeKey}`);
     if (!r.ok) return;
     const p = await r.json();
-    $("p-shares").textContent = fmt(p.shares);
+    $("p-deposited").textContent = fmt(p.deposited) + " sUSD";
     $("p-value").textContent = fmt(p.value) + " sUSD";
     const earned = Number(p.earned || 0) / 1e9;
-    const value = Number(p.value || 0) / 1e9;
-    const base = value - earned; // the deposited part, value minus yield
-    const pct = base > 0 ? (earned / base) * 100 : 0;
+    const deposited = Number(p.deposited || 0) / 1e9;
+    const pct = deposited > 0 ? (earned / deposited) * 100 : 0;
     const el = $("p-earned");
     el.textContent = "+" + earned.toLocaleString("en-US", { maximumFractionDigits: 4 }) + ` sUSD (+${pct.toFixed(2)}%)`;
     el.classList.toggle("up", earned > 0);
@@ -216,6 +215,12 @@ async function doDeposit() {
   );
   if (hash) {
     txDone(hash, "Deposit submitted on chain, pending confirmation.");
+    // Register so the agent accrues yield to this account.
+    fetch(`${API}/api/depositor`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ account: activeKey }),
+    }).catch(() => {});
     reconcile();
     // Require a fresh approval for the next deposit, the allowance was spent.
     const dep = $("deposit-btn"); dep.disabled = true; dep.textContent = "2. Deposit (approve first)";
@@ -248,31 +253,20 @@ document.querySelectorAll(".tab").forEach((t) => {
 document.querySelectorAll(".chip-btn").forEach((c) => {
   c.onclick = () => {
     const which = c.dataset.fill === "deposit" ? "deposit" : "withdraw";
-    $(which + "-amount").value = c.dataset.val === "all" ? ($("p-shares").textContent || "0") : c.dataset.val;
+    const maxVal = (($("p-value").textContent || "0").replace(/[^0-9.]/g, "")) || "0";
+    $(which + "-amount").value = c.dataset.val === "all" ? maxVal : c.dataset.val;
     updateHint(which);
   };
 });
 
-// Current assets per share, updated from chain, used to show the sUSD a withdraw
-// returns. One to one until yield accrues.
-let sharePrice = 1;
-
-// Hint under the input. Deposit shows the raw on chain units so the big wallet number
-// is not a surprise. Withdraw shows the sUSD the shares redeem for, since the field is
-// in shares but people think in dollars.
+// Hint under the input. Both deposit and withdraw are in sUSD now. Show the raw on
+// chain units so the big number the wallet shows is not a surprise.
 function updateHint(which) {
   const inp = $(which + "-amount"), hint = $(which + "-hint");
   if (!inp || !hint) return;
   hint.textContent = "";
   const v = parseFloat(inp.value);
   if (!(v > 0)) return;
-  if (which === "withdraw") {
-    const susd = (v * sharePrice).toLocaleString("en-US", { maximumFractionDigits: 4 });
-    hint.appendChild(document.createTextNode(`${v} shares ≈ `));
-    hint.appendChild(el("span", "units", `${susd} sUSD`));
-    hint.appendChild(document.createTextNode(" you receive"));
-    return;
-  }
   const units = BigInt(Math.round(v * 1e9)).toLocaleString("en-US");
   hint.appendChild(document.createTextNode(`${v} sUSD = `));
   hint.appendChild(el("span", "units", `${units} units on chain`));
@@ -300,11 +294,7 @@ async function refreshVaultOnChain() {
     $("v-cons").textContent = v.allocation.conservative + "%";
     $("v-grow").textContent = v.allocation.growth + "%";
     $("v-allocbar").style.width = v.allocation.conservative + "%";
-    if (v.sharePrice) {
-      sharePrice = Number(v.sharePrice) / 1e9;
-      const growth = (sharePrice - 1) * 100;
-      $("v-price").textContent = sharePrice.toFixed(4) + (growth ? `  (+${growth.toFixed(2)}%)` : "");
-    }
+    if (v.totalPrincipal !== undefined) $("v-principal").textContent = fmt(v.totalPrincipal) + " sUSD";
     if (v.totalYield !== undefined) $("v-yield").textContent = fmt(v.totalYield) + " sUSD";
   } catch (e) {
     console.warn("vault read", e);

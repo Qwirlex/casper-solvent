@@ -134,22 +134,24 @@ export async function submitRebalance(
   );
 }
 
-// Accrue yield into the vault, the income side for depositors. The agent holds a
-// reserve of pay token and a standing allowance to the vault, so this calls accrue
-// directly and the vault pulls the amount in, raising assets per share. Live mode only,
-// local mode returns a pseudo hash.
-export async function accrueYield(amount: string): Promise<string> {
+// Accrue yield to one depositor. Agent only, funded from the agent reserve through a
+// standing allowance. ownerAccountHash is the account hash form, account-hash-... or 64
+// hex. Live mode only, local mode returns a pseudo hash.
+export async function accrueYield(ownerAccountHash: string, amount: string): Promise<string> {
   if (!LIVE) return `local-accrue-${amount}`;
   const sdk: any = await import("casper-js-sdk");
-  const { HttpHandler, RpcClient, Args, CLValue, ContractCallBuilder, PrivateKey, KeyAlgorithm } = sdk;
+  const { HttpHandler, RpcClient, Args, CLValue, Key, ContractCallBuilder, PrivateKey, KeyAlgorithm } = sdk;
   const rpc = new RpcClient(new HttpHandler(config.node));
   const pem = await (await import("node:fs/promises")).readFile(config.agentSecretKey, "utf8");
   const priv = PrivateKey.fromPem(pem, KeyAlgorithm.SECP256K1);
   const packageHash = config.vaultHash.replace(/^hash-/, "");
+  const owner = ownerAccountHash.startsWith("account-hash-")
+    ? ownerAccountHash
+    : `account-hash-${ownerAccountHash}`;
   const tx = new ContractCallBuilder()
     .byPackageHash(packageHash)
     .entryPoint("accrue")
-    .runtimeArgs(Args.fromMap({ amount: CLValue.newCLUInt256(amount) }))
+    .runtimeArgs(Args.fromMap({ owner: CLValue.newCLKey(Key.newKey(owner)), amount: CLValue.newCLUInt256(amount) }))
     .payment(5_000_000_000)
     .chainName(config.chain)
     .from(priv.publicKey)

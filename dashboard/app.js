@@ -158,10 +158,29 @@ document.querySelectorAll(".tab").forEach((t) => {
 });
 document.querySelectorAll(".chip-btn").forEach((c) => {
   c.onclick = () => {
-    const target = c.dataset.fill === "deposit" ? "deposit-amount" : "withdraw-amount";
-    $(target).value = c.dataset.val === "all" ? ($("p-shares").textContent || "0") : c.dataset.val;
+    const which = c.dataset.fill === "deposit" ? "deposit" : "withdraw";
+    $(which + "-amount").value = c.dataset.val === "all" ? ($("p-shares").textContent || "0") : c.dataset.val;
+    updateHint(which);
   };
 });
+
+// Show the on chain atomic units under the input so the big number the wallet shows is
+// not a surprise. sUSD has 9 decimals, so 10 sUSD is 10,000,000,000 units.
+function updateHint(which) {
+  const inp = $(which + "-amount"), hint = $(which + "-hint");
+  if (!inp || !hint) return;
+  hint.textContent = "";
+  const v = parseFloat(inp.value);
+  if (!(v > 0)) return;
+  const units = BigInt(Math.round(v * 1e9)).toLocaleString("en-US");
+  const unit = which === "deposit" ? "sUSD" : "shares";
+  hint.appendChild(document.createTextNode(`${v} ${unit} = `));
+  const u = el("span", "units", `${units} units on chain`);
+  hint.appendChild(u);
+  hint.appendChild(document.createTextNode(", the wallet shows this raw number"));
+}
+$("deposit-amount").addEventListener("input", () => updateHint("deposit"));
+$("withdraw-amount").addEventListener("input", () => updateHint("withdraw"));
 
 /* ---------- vault stats + agent feed ---------- */
 function fmtTs(ts) { return new Date(ts).toLocaleString("en-US", { hour12: false }); }

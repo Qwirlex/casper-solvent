@@ -104,6 +104,8 @@ code { font-family: "JetBrains Mono", monospace; font-size: 0.85em; background: 
 .amount-input:focus { outline: none; border-color: var(--red); }
 .chip-btn { background: var(--card-2); border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 9px 12px; font-size: 0.82rem; cursor: pointer; font-family: inherit; }
 .chip-btn:hover { border-color: #34343c; color: var(--text); }
+.amount-hint { font-size: 0.78rem; color: var(--muted); margin-top: 8px; font-family: "JetBrains Mono", monospace; min-height: 1em; }
+.amount-hint .units { color: var(--faint); }
 .field-note { font-size: 0.8rem; color: var(--faint); margin-top: 12px; line-height: 1.5; }
 .tx-result { margin-top: 16px; padding: 13px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-2); font-size: 0.86rem; }
 .tx-result.ok { border-color: rgba(46,230,166,.35); }

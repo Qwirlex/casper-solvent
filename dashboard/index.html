@@ -98,6 +98,7 @@
               <button class="chip-btn" data-fill="deposit" data-val="50">50</button>
               <button class="chip-btn" data-fill="deposit" data-val="100">100</button>
             </div>
+            <div class="amount-hint" id="deposit-hint"></div>
             <button id="deposit-btn" class="btn btn-accent btn-block" disabled>Connect wallet to deposit</button>
             <p class="field-note">Deposit registers your position in the vault on chain. Your wallet signs and pays gas. On testnet the vault tracks shares; real token custody is on the roadmap.</p>
           </div>
@@ -107,6 +108,7 @@
               <input id="withdraw-amount" class="amount-input" type="number" min="0" step="0.1" placeholder="0.0" />
               <button class="chip-btn" data-fill="withdraw" data-val="all">Max</button>
             </div>
+            <div class="amount-hint" id="withdraw-hint"></div>
             <button id="withdraw-btn" class="btn btn-block" disabled>Connect wallet to withdraw</button>
             <p class="field-note">Withdraw burns your shares and returns the proportional assets, signed by your wallet.</p>
           </div>

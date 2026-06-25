@@ -8,3 +8,6 @@ keys/
 loop-log.json
 tools/keyderive/candidates.json
 tools/keyderive/err.txt
+
+agents/swap-state.json
+agents/depositors.json

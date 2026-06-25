@@ -2,11 +2,13 @@ import express from "express";
 import type { Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { buildFeed } from "./feed.js";
+import { config } from "../shared/config.js";
+import { x402Gate } from "../shared/x402Gate.js";
 
-// The data-agent sells a price feed for the vault asset. On a funded testnet this
-// endpoint is gated by x402 so the fund agent must pay a CEP-18 micro fee per call.
-// x402 gating is the funded stage upgrade, the loop runs locally without a funded
-// chain. See README for the funded path.
+// The data-agent sells a price feed for the vault asset. The /feed route is gated by
+// x402, the fund agent must present a signed CEP-18 payment authorization to read it.
+// The handshake runs locally too, the signature is real, only the on chain
+// settlement needs a funded chain. See README for the funded path.
 const PORT = Number(process.env.DATA_AGENT_PORT ?? 4001);
 
 // A lightly moving quote so successive cycles differ. Deterministic drift, no RNG.
@@ -19,9 +21,29 @@ function nextQuote(): { last: number; prev: number } {
   return { last: Number(last.toFixed(6)), prev: Number(prev.toFixed(6)) };
 }
 
-export function startDataAgent(port: number = PORT): Server {
+export interface DataAgentOptions {
+  asset?: string;
+  payTo?: string;
+  price?: string;
+}
+
+export function startDataAgent(port: number = PORT, opts: DataAgentOptions = {}): Server {
   const app = express();
-  app.get("/feed", (_req, res) => res.json(buildFeed("CSPR", nextQuote(), Date.now())));
+  const asset = opts.asset ?? config.payTokenHash;
+  const payTo = opts.payTo ?? config.dataAgentAccount;
+  const price = opts.price ?? config.x402Price;
+
+  // Gate the feed when an asset and a recipient are configured. Without them the
+  // route stays open so a bare checkout still runs.
+  if (asset && payTo) {
+    app.get(
+      "/feed",
+      x402Gate({ asset, payTo, amount: price, tokenName: config.tokenName, tokenVersion: config.tokenVersion, resource: "data-agent price feed" }),
+      (_req, res) => res.json(buildFeed("CSPR", nextQuote(), Date.now())),
+    );
+  } else {
+    app.get("/feed", (_req, res) => res.json(buildFeed("CSPR", nextQuote(), Date.now())));
+  }
   app.get("/health", (_req, res) => res.json({ ok: true, agent: "data-agent" }));
   return app.listen(port, () => console.log(`data-agent listening on ${port}`));
 }

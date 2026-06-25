@@ -20,4 +20,9 @@ export const config = {
   riskAgentUrl: process.env.RISK_AGENT_URL ?? "http://localhost:4002",
   dataAgentAccount: process.env.DATA_AGENT_ACCOUNT ?? "",
   riskAgentAccount: process.env.RISK_AGENT_ACCOUNT ?? "",
+  // x402 fee per service call, atomic units of the pay token at 9 decimals, 1 sUSD.
+  x402Price: process.env.X402_PRICE ?? "1000000000",
+  // EIP-712 token domain identity, must agree across the client and the server.
+  tokenName: process.env.X402_TOKEN_NAME ?? "Solvent USD",
+  tokenVersion: process.env.X402_TOKEN_VERSION ?? "1",
 };

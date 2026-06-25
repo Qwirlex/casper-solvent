@@ -22,18 +22,24 @@ This only makes sense on a chain with native x402.
 One decision cycle:
 
 1. The fund agent reads the vault and the market through CSPR.cloud.
-2. It buys a price feed from the data agent and settles the fee with a real CEP-18
-   transfer to the data agent account on Casper testnet.
-3. It buys a risk score from the risk agent and settles that fee the same way.
+2. It requests a price feed from the data agent. The data agent answers an unpaid
+   request with HTTP 402 and a set of payment requirements. The fund agent signs an
+   EIP-712 TransferWithAuthorization over those requirements with its Casper key,
+   settles the fee as a CEP-18 transfer on testnet, and retries with the payment in
+   the X-PAYMENT header. The data agent verifies the signature, then serves the feed.
+3. It buys a risk score from the risk agent through the same x402 handshake.
 4. A bounded decision function picks the target allocation, and Gemini narrates it.
 5. The agent signs and submits a rebalance to the vault on Casper testnet.
 6. The vault skims a capped performance fee, the income side of the loop, enforced by
    the contract.
 
-The HTTP 402 wrapper from the casper-x402 package sits on top of this same CEP-18
-transfer in the productionized path, turning each priced call into a pay per request
-exchange with a cryptographic payment proof. The on chain settlement is real today, the
-transport wrapper is the next step.
+The x402 layer is real, not a stub. The 402 challenge, the EIP-712 signature, and the
+server side verification use the @make-software/casper-x402 scheme, so a payload our
+client builds verifies against the SDK facilitator and vice versa. The one production
+gap is settlement. A plain CEP-18 cannot pull a transfer from a signed authorization
+on chain, so today the payer submits the transfer itself. The drop in upgrade is a
+CEP-18 with transfer_with_authorization plus the SDK facilitator that submits it, which
+needs no change to the handshake.
 
 Every step lands on chain and can be audited. The agent acts on its own but inside
 guardrails the contract enforces. It can only choose among a fixed allocation set and

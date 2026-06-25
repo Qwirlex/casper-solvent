@@ -1,5 +1,5 @@
 import { config } from "../shared/config.js";
-import { payAndGet } from "./x402Client.js";
+import { payAndGet, loadClientSigner, type ClientSigner } from "./x402Client.js";
 import { decideAllocation } from "./decision.js";
 import { explainDecision } from "./llm.js";
 import { readVaultState, submitRebalance, payService } from "./chain.js";
@@ -9,6 +9,8 @@ export interface X402Payment {
   label: string;
   amount: string;
   txHash: string;
+  payer?: string;
+  payTo?: string;
 }
 
 export interface CycleRecord {
@@ -25,26 +27,40 @@ export interface CycleRecord {
   rebalanceTxHash: string;
 }
 
-// Price the agent pays per service call, 1 sUSD at 9 decimals.
-const X402_PRICE = "1000000000";
+// Load the x402 client signer once. The fund agent signs every payment authorization
+// with this key, the same funded account that owns the vault.
+let signerPromise: Promise<ClientSigner> | null = null;
+function getSigner(): Promise<ClientSigner> {
+  return (signerPromise = signerPromise ?? loadClientSigner(config.agentSecretKey));
+}
 
-// One decision cycle. Read state, buy a feed and a risk score over x402, decide a
-// bounded allocation, narrate it with Gemini, then submit the rebalance on chain.
+// One decision cycle. Read state, buy a feed and a risk score over a real x402
+// handshake, decide a bounded allocation, narrate it with Gemini, then submit the
+// rebalance on chain. Each paid call signs an EIP-712 authorization and settles a
+// CEP-18 transfer, the spend side of the agent economy.
 export async function runCycle(log: (m: string) => void = console.log): Promise<CycleRecord> {
   const before = await readVaultState();
   log(
     `vault assets ${before.totalAssets}, allocation ${before.allocation.conservative}/${before.allocation.growth}`,
   );
 
-  const feed = await payAndGet<Feed>(`${config.dataAgentUrl}/feed`);
-  const dataTx = await payService(config.dataAgentAccount, X402_PRICE, 1);
-  log(`bought feed price ${feed.price}, settled CEP-18 to data-agent ${dataTx}`);
+  const signer = await getSigner();
 
-  const risk = await payAndGet<RiskScore>(
+  const feedPaid = await payAndGet<Feed>(`${config.dataAgentUrl}/feed`, {
+    signer,
+    settle: (req) => payService(config.dataAgentAccount, req.amount, 1),
+  });
+  const feed = feedPaid.data;
+  const dataTx = feedPaid.payment?.settlement ?? "unsettled";
+  log(`x402 paid data-agent, feed price ${feed.price}, settled CEP-18 ${dataTx}`);
+
+  const riskPaid = await payAndGet<RiskScore>(
     `${config.riskAgentUrl}/risk?changePct24h=${feed.changePct24h}&price=${feed.price}`,
+    { signer, settle: (req) => payService(config.riskAgentAccount, req.amount, 2) },
   );
-  const riskTx = await payService(config.riskAgentAccount, X402_PRICE, 2);
-  log(`bought risk score ${risk.score}, settled CEP-18 to risk-agent ${riskTx}`);
+  const risk = riskPaid.data;
+  const riskTx = riskPaid.payment?.settlement ?? "unsettled";
+  log(`x402 paid risk-agent, score ${risk.score}, settled CEP-18 ${riskTx}`);
 
   const decision = decideAllocation(risk);
   const reason = await explainDecision(feed, risk, decision.allocation);
@@ -54,6 +70,7 @@ export async function runCycle(log: (m: string) => void = console.log): Promise<
   log(`submitted rebalance ${rebalanceTxHash}`);
 
   const feeHarvested = (before.totalAssets / 200n).toString(); // 0.5 percent illustrative skim
+  const price = config.x402Price;
 
   return {
     ts: Date.now(),
@@ -65,8 +82,20 @@ export async function runCycle(log: (m: string) => void = console.log): Promise<
     decisionRef: decision.decisionRef,
     reason,
     x402Payments: [
-      { label: "data-agent feed", amount: X402_PRICE, txHash: dataTx },
-      { label: "risk-agent score", amount: X402_PRICE, txHash: riskTx },
+      {
+        label: "data-agent feed",
+        amount: feedPaid.payment?.value ?? price,
+        txHash: dataTx,
+        payer: feedPaid.payment?.payer,
+        payTo: feedPaid.payment?.payTo,
+      },
+      {
+        label: "risk-agent score",
+        amount: riskPaid.payment?.value ?? price,
+        txHash: riskTx,
+        payer: riskPaid.payment?.payer,
+        payTo: riskPaid.payment?.payTo,
+      },
     ],
     feeHarvested,
     rebalanceTxHash,

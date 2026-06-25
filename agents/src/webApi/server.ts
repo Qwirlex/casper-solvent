@@ -36,10 +36,34 @@ export function startWebApi(port: number = PORT): Server {
   app.get("/api/shares/:account", async (req, res) => {
     try {
       const pos = await reader.position(req.params.account);
-      res.json({ account: req.params.account, shares: pos.shares, value: pos.value });
+      res.json({ account: req.params.account, shares: pos.shares, value: pos.value, earned: pos.earned });
     } catch (e) {
       res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
     }
+  });
+
+  // Status of a transaction, used by the dApp to gate the deposit on the approval
+  // confirming. CSPR.cloud indexes by hash, deploy or version 1. Returns executed and
+  // success once it has run, error carries a revert reason.
+  app.get("/api/tx/:hash", async (req, res) => {
+    const hash = req.params.hash.replace(/[^0-9a-fA-F]/g, "");
+    if (!config.csprCloudKey) return res.json({ executed: false, note: "no api key" });
+    for (const path of [`deploys/${hash}`, `transactions/${hash}`]) {
+      try {
+        const r = await fetch(`https://api.testnet.cspr.cloud/${path}`, {
+          headers: { authorization: config.csprCloudKey },
+        });
+        if (!r.ok) continue;
+        const body: any = await r.json();
+        const d = body.data ?? body;
+        if (d && d.error_message !== undefined) {
+          return res.json({ executed: true, success: !d.error_message, error: d.error_message ?? null });
+        }
+      } catch {
+        // try next path
+      }
+    }
+    return res.json({ executed: false });
   });
 
   return app.listen(port, () => console.log(`web-api listening on ${port}`));

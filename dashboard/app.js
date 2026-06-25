@@ -20,13 +20,6 @@ function shortKey(k) { return k ? k.slice(0, 6) + "…" + k.slice(-4) : ""; }
 function el(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt !== undefined) e.textContent = txt; return e; }
 
 /* ---------- wallet ---------- */
-// Principal the user has put in through this dApp, per account, so earned can be shown
-// as current value minus what was deposited. Kept on the device, the share value
-// itself is always read from chain.
-function principalKey(k) { return "solvent_principal_" + k; }
-function getPrincipal(k) { return parseFloat(localStorage.getItem(principalKey(k)) || "0") || 0; }
-function addPrincipal(k, delta) { localStorage.setItem(principalKey(k), String(Math.max(0, getPrincipal(k) + delta))); }
-
 function onConnected(key) {
   activeKey = key;
   $("connect-btn").hidden = true;
@@ -37,33 +30,29 @@ function onConnected(key) {
   $("p-wallet").textContent = shortKey(key);
   const a = $("approve-btn"), d = $("deposit-btn"), w = $("withdraw-btn");
   a.disabled = false; a.textContent = "1. Approve sUSD";
-  d.disabled = false; d.textContent = "2. Deposit";
+  d.disabled = true; d.textContent = "2. Deposit (approve first)";
   w.disabled = false; w.textContent = "Withdraw shares";
   refreshPosition();
 }
 
-// Read the connected account's real shares and current value from chain through the
-// read API, and show earned against the tracked principal. Falls back silently.
+// Read the connected account's shares, current value, and earned yield from chain.
+// Earned is the holder's proportional slice of the vault yield, computed on chain, so
+// it is correct without any device side cost basis. Falls back silently.
 async function refreshPosition() {
   if (!activeKey) return;
   try {
     const r = await fetch(`${API}/api/shares/${activeKey}`);
     if (!r.ok) return;
     const p = await r.json();
-    const valueSusd = Number(p.value) / 1e9;
     $("p-shares").textContent = fmt(p.shares);
     $("p-value").textContent = fmt(p.value) + " sUSD";
-    const principal = getPrincipal(activeKey);
-    const earned = valueSusd - principal;
+    const earned = Number(p.earned || 0) / 1e9;
+    const value = Number(p.value || 0) / 1e9;
+    const base = value - earned; // the deposited part, value minus yield
+    const pct = base > 0 ? (earned / base) * 100 : 0;
     const el = $("p-earned");
-    if (principal > 0) {
-      const pct = principal > 0 ? (earned / principal) * 100 : 0;
-      el.textContent = (earned >= 0 ? "+" : "") + earned.toLocaleString("en-US", { maximumFractionDigits: 4 }) + ` sUSD (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
-      el.classList.toggle("up", earned >= 0);
-    } else {
-      el.textContent = "deposit to start tracking";
-      el.classList.remove("up");
-    }
+    el.textContent = "+" + earned.toLocaleString("en-US", { maximumFractionDigits: 4 }) + ` sUSD (+${pct.toFixed(2)}%)`;
+    el.classList.toggle("up", earned > 0);
   } catch (e) {
     console.warn("position read", e);
   }
@@ -167,6 +156,39 @@ function amountMotes(id) {
   return { v, motes: BigInt(Math.round(v * 1e9)).toString() };
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Keep the deposit button locked until the approval has executed on chain. Polls the
+// transaction status, so the user cannot deposit before the allowance is set, which is
+// what caused the insufficient allowance revert.
+async function awaitApproval(hash) {
+  const dep = $("deposit-btn");
+  dep.disabled = true; dep.textContent = "Waiting for approval…";
+  const valid = hash && /^[0-9a-f]{60,}$/i.test(String(hash));
+  const deadline = Date.now() + 180000;
+  while (Date.now() < deadline) {
+    if (valid) {
+      try {
+        const s = await (await fetch(`${API}/api/tx/${hash}`)).json();
+        if (s.executed) {
+          if (s.success) {
+            dep.disabled = false; dep.textContent = "2. Deposit";
+            showResult("ok", "Approval confirmed on chain. Click Deposit now.");
+          } else {
+            dep.textContent = "2. Deposit (approve first)";
+            showResult("err", "Approval failed: " + (s.error || "unknown"));
+          }
+          return;
+        }
+      } catch (e) { console.warn("tx poll", e); }
+    }
+    await sleep(6000);
+  }
+  // Fallback if the status never resolved, enable but warn.
+  dep.disabled = false; dep.textContent = "2. Deposit";
+  showResult("ok", "Approval is taking longer than usual. If Deposit fails with an allowance error, wait a bit and try again.");
+}
+
 // Step one, approve the vault to pull the deposit. The vault custodies the tokens.
 async function doApprove() {
   if (!activeKey) return;
@@ -176,10 +198,14 @@ async function doApprove() {
     (CLValue, Key) => ({ spender: CLValue.newCLKey(Key.newKey("hash-" + VAULT_PKG)), amount: CLValue.newCLUInt256(a.motes) }),
     $("approve-btn"), "Approval sent to your wallet, sign it.",
   );
-  if (hash) txDone(hash, "Approval submitted. Wait about thirty seconds for it to confirm, then click Deposit.");
+  if (hash) {
+    txDone(hash, "Approval submitted, confirming on chain. Deposit unlocks once it is in.");
+    awaitApproval(hash);
+  }
 }
 
-// Step two, deposit the approved amount and receive shares.
+// Step two, deposit the approved amount and receive shares. Only reachable after the
+// approval has confirmed, the button is locked until then.
 async function doDeposit() {
   if (!activeKey) return;
   const a = amountMotes("deposit-amount"); if (!a) return;
@@ -188,7 +214,12 @@ async function doDeposit() {
     (CLValue) => ({ amount: CLValue.newCLUInt256(a.motes) }),
     $("deposit-btn"), "Deposit sent to your wallet, sign it.",
   );
-  if (hash) { addPrincipal(activeKey, a.v); txDone(hash, "Deposit submitted on chain, pending confirmation."); reconcile(); }
+  if (hash) {
+    txDone(hash, "Deposit submitted on chain, pending confirmation.");
+    reconcile();
+    // Require a fresh approval for the next deposit, the allowance was spent.
+    const dep = $("deposit-btn"); dep.disabled = true; dep.textContent = "2. Deposit (approve first)";
+  }
 }
 
 async function doWithdraw() {
@@ -199,7 +230,7 @@ async function doWithdraw() {
     (CLValue) => ({ share_amount: CLValue.newCLUInt256(a.motes) }),
     $("withdraw-btn"), "Withdraw sent to your wallet, sign it.",
   );
-  if (hash) { addPrincipal(activeKey, -a.v); txDone(hash, "Withdraw submitted on chain, pending confirmation."); reconcile(); }
+  if (hash) { txDone(hash, "Withdraw submitted on chain, pending confirmation."); reconcile(); }
 }
 
 $("approve-btn").onclick = doApprove;
@@ -222,19 +253,29 @@ document.querySelectorAll(".chip-btn").forEach((c) => {
   };
 });
 
-// Show the on chain atomic units under the input so the big number the wallet shows is
-// not a surprise. sUSD has 9 decimals, so 10 sUSD is 10,000,000,000 units.
+// Current assets per share, updated from chain, used to show the sUSD a withdraw
+// returns. One to one until yield accrues.
+let sharePrice = 1;
+
+// Hint under the input. Deposit shows the raw on chain units so the big wallet number
+// is not a surprise. Withdraw shows the sUSD the shares redeem for, since the field is
+// in shares but people think in dollars.
 function updateHint(which) {
   const inp = $(which + "-amount"), hint = $(which + "-hint");
   if (!inp || !hint) return;
   hint.textContent = "";
   const v = parseFloat(inp.value);
   if (!(v > 0)) return;
+  if (which === "withdraw") {
+    const susd = (v * sharePrice).toLocaleString("en-US", { maximumFractionDigits: 4 });
+    hint.appendChild(document.createTextNode(`${v} shares ≈ `));
+    hint.appendChild(el("span", "units", `${susd} sUSD`));
+    hint.appendChild(document.createTextNode(" you receive"));
+    return;
+  }
   const units = BigInt(Math.round(v * 1e9)).toLocaleString("en-US");
-  const unit = which === "deposit" ? "sUSD" : "shares";
-  hint.appendChild(document.createTextNode(`${v} ${unit} = `));
-  const u = el("span", "units", `${units} units on chain`);
-  hint.appendChild(u);
+  hint.appendChild(document.createTextNode(`${v} sUSD = `));
+  hint.appendChild(el("span", "units", `${units} units on chain`));
   hint.appendChild(document.createTextNode(", the wallet shows this raw number"));
 }
 $("deposit-amount").addEventListener("input", () => updateHint("deposit"));
@@ -260,9 +301,9 @@ async function refreshVaultOnChain() {
     $("v-grow").textContent = v.allocation.growth + "%";
     $("v-allocbar").style.width = v.allocation.conservative + "%";
     if (v.sharePrice) {
-      const price = Number(v.sharePrice) / 1e9;
-      const growth = (price - 1) * 100;
-      $("v-price").textContent = price.toFixed(4) + (growth ? `  (+${growth.toFixed(2)}%)` : "");
+      sharePrice = Number(v.sharePrice) / 1e9;
+      const growth = (sharePrice - 1) * 100;
+      $("v-price").textContent = sharePrice.toFixed(4) + (growth ? `  (+${growth.toFixed(2)}%)` : "");
     }
     if (v.totalYield !== undefined) $("v-yield").textContent = fmt(v.totalYield) + " sUSD";
   } catch (e) {

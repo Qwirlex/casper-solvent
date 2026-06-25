@@ -49,6 +49,7 @@ export interface VaultSummary {
 export interface Position {
   shares: string; // raw shares, 9 decimals
   value: string; // current redeemable assets, raw, 9 decimals
+  earned: string; // the holder's share of accrued yield, raw, 9 decimals
 }
 
 let rpcId = 0;
@@ -164,21 +165,26 @@ export class VaultReader {
     return decodeU256(bytes);
   }
 
-  // A holder's shares and their current redeemable value, the assets the shares would
-  // return today including accrued yield.
+  // A holder's shares, their current redeemable value, and their share of the yield.
+  // Value is shares times assets per share. Earned is the holder's proportional slice
+  // of the total yield ever accrued, shares over total shares times total yield, which
+  // needs no off chain cost basis and is read straight from the contract.
   async position(accountInput: string): Promise<Position> {
     const srh = await this.stateRootHash();
     const seed = await this.resolveStateUref(srh);
-    const [sharesStr, taStr, tsStr] = await Promise.all([
+    const [sharesStr, taStr, tsStr, tyStr] = await Promise.all([
       this.readSharesAt(srh, seed, accountInput),
       this.readVar(srh, seed, FIELD.totalAssets).then(decodeU256),
       this.readVar(srh, seed, FIELD.totalShares).then(decodeU256),
+      this.readVar(srh, seed, FIELD.totalYield).then(decodeU256),
     ]);
     const shares = BigInt(sharesStr);
     const totalAssets = BigInt(taStr);
     const totalShares = BigInt(tsStr);
+    const totalYield = BigInt(tyStr);
     const value = totalShares > 0n ? (shares * totalAssets) / totalShares : 0n;
-    return { shares: shares.toString(), value: value.toString() };
+    const earned = totalShares > 0n ? (shares * totalYield) / totalShares : 0n;
+    return { shares: shares.toString(), value: value.toString(), earned: earned.toString() };
   }
 }
 

@@ -50,13 +50,13 @@
 
   <section class="intro">
     <div class="intro-inner">
-      <h1>An autonomous agent<br />manages the vault. <span class="accent">You hold the keys.</span></h1>
-      <p>Deposit into the Solvent vault on Casper testnet. An AI agent reads the market, pays for data and risk over x402, and rebalances the allocation on chain. Connect a wallet to take a position. Withdraw any time.</p>
+      <h1>A savings vault run by<br />an AI agent. <span class="accent">You stay in control.</span></h1>
+      <p>Put money in, the agent grows the pool, take out your share plus what it earned. The agent works on its own and the vault can never take your funds. This is a Casper testnet demo, the money is test money.</p>
       <div class="intro-steps">
-        <span>1 · Connect a wallet</span>
-        <span>2 · Deposit into the vault</span>
-        <span>3 · The agent manages allocation</span>
-        <span>4 · Withdraw your shares</span>
+        <span>1 · Connect your wallet</span>
+        <span>2 · Deposit and get shares</span>
+        <span>3 · The agent earns yield for the pool</span>
+        <span>4 · Withdraw your share plus profit, anytime</span>
       </div>
     </div>
   </section>
@@ -128,9 +128,9 @@
       <!-- right: agent activity -->
       <div class="col">
         <div class="card agent-card">
-          <div class="card-head"><h2>Agent activity</h2><span class="live"><span class="dot"></span> autonomous</span></div>
-          <p class="muted small">The agent decides on its own, inside guardrails the contract enforces. Each cycle it buys a feed and a risk score, then signs a rebalance.</p>
-          <div id="loop-feed" class="feed">Loading the agent loop…</div>
+          <div class="card-head"><h2>What the agent did</h2><span class="live"><span class="dot"></span> running on its own</span></div>
+          <p class="muted small">Every few minutes the agent checks the market, decides how much of the pool to keep safe versus growth, adds yield, and writes it on chain. It can never take your money.</p>
+          <div id="loop-feed" class="feed">Loading the agent activity…</div>
         </div>
       </div>
     </div>
@@ -141,11 +141,11 @@
       <h2>Proven on chain</h2>
       <p class="muted">Casper 2.0, chain <code>casper-test</code>. Contracts and the agent are live and verifiable.</p>
       <div class="proof-cards">
-        <a class="proof-card" href="https://testnet.cspr.live/contract-package/99abf0408b2c799aabf8b1b3d275d1117b0a2ca020657ec0f1fd4664b0638389" target="_blank" rel="noopener noreferrer">
-          <span class="proof-label">Vault contract</span><span class="mono">hash-99abf040…</span>
+        <a class="proof-card" href="https://testnet.cspr.live/contract-package/ef636b715136655ffe4796aeb8e221ce236710f0dcf08c163f85cd39a8397711" target="_blank" rel="noopener noreferrer">
+          <span class="proof-label">Vault contract</span><span class="mono">hash-ef636b71…</span>
         </a>
-        <a class="proof-card" href="https://testnet.cspr.live/contract-package/77b6965b86199ef296953065c643661d67bb7f588d7b1b02c0444c2b59dd901e" target="_blank" rel="noopener noreferrer">
-          <span class="proof-label">Pay token, CEP-18</span><span class="mono">hash-77b6965b…</span>
+        <a class="proof-card" href="https://testnet.cspr.live/contract-package/f7b25be95ff7c6ecb3518b2d8cd3fbad89949551661e99509f544673fe39ce59" target="_blank" rel="noopener noreferrer">
+          <span class="proof-label">Pay token, CEP-18</span><span class="mono">hash-f7b25be9…</span>
         </a>
         <a class="proof-card" href="https://testnet.cspr.live/account/02020f62f89d5d78d79eba973ed5a45556b1dd6e1a31c5fb9490f634394e1af1a7ad" target="_blank" rel="noopener noreferrer">
           <span class="proof-label">Agent account</span><span class="mono">02020f62…</span>

@@ -27,27 +27,21 @@ const localState: VaultState = {
 export async function readVaultState(): Promise<VaultState> {
   if (!LIVE) return { ...localState, allocation: { ...localState.allocation } };
 
-  // Live read through CSPR.cloud REST. The vault stores total_assets and the
-  // allocation as contract state, CSPR.cloud exposes it by contract hash. The read
-  // is best effort, a failure here must never break a decision cycle, the loop
-  // still buys data and risk, decides, and writes the rebalance on chain. We fall
-  // back to the conservative default the vault is initialised with.
+  // Live read straight from the vault contract over the public node, the same
+  // decoder the dashboard read API uses. Best effort, a failure here must never break
+  // a decision cycle, so we fall back to the conservative default on any error.
   const fallback: VaultState = {
     totalAssets: localState.totalAssets,
     allocation: { conservative: 100, growth: 0 },
   };
   try {
-    const hash = config.vaultHash.replace(/^hash-/, "");
-    const url = `https://api.testnet.cspr.cloud/contracts/${hash}/named-keys`;
-    const res = await fetch(url, { headers: { authorization: config.csprCloudKey } });
-    if (!res.ok) return fallback;
-    const body: any = await res.json();
-    const keys: Record<string, any> = {};
-    for (const item of body.data ?? []) keys[item.name] = item.value ?? item;
-    const conservative = Number(keys["alloc_conservative"] ?? fallback.allocation.conservative);
-    const growth = Number(keys["alloc_growth"] ?? fallback.allocation.growth);
-    const totalAssets = BigInt(keys["total_assets"] ?? fallback.totalAssets);
-    return { totalAssets, allocation: { conservative, growth } };
+    const { VaultReader } = await import("../shared/vaultReader.js");
+    const reader = new VaultReader({ node: config.node, packageHash: config.vaultHash });
+    const s = await reader.summary();
+    return {
+      totalAssets: BigInt(s.totalAssets),
+      allocation: { conservative: s.allocation.conservative, growth: s.allocation.growth },
+    };
   } catch {
     return fallback;
   }

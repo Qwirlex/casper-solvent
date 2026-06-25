@@ -248,17 +248,8 @@ function txa(hash, label) {
   const a = document.createElement("a"); a.href = EXPLORER + hash; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = label; return a;
 }
 
-function renderVault(latest) {
-  $("v-assets").textContent = fmt(latest.vaultAssets) + " sUSD";
-  const a = latest.allocationAfter;
-  $("v-cons").textContent = a.conservative + "%";
-  $("v-grow").textContent = a.growth + "%";
-  $("v-allocbar").style.width = a.conservative + "%";
-}
-
-// Override the vault card with real on chain state from the read API. The agent feed
-// still comes from the loop log, but the headline numbers are read straight from the
-// vault contract so they are always the chain truth.
+// The vault card is read straight from the vault contract through the read API, so the
+// headline numbers are always chain truth.
 async function refreshVaultOnChain() {
   try {
     const r = await fetch(`${API}/api/vault`);
@@ -278,43 +269,47 @@ async function refreshVaultOnChain() {
     console.warn("vault read", e);
   }
 }
+// Plain English summary of a cycle from the numbers, no model flavored text.
+function cycleSentence(c) {
+  const g = c.allocationAfter.growth;
+  const risk = c.riskScore;
+  const level = risk <= 20 ? "low" : risk <= 50 ? "moderate" : "high";
+  return `Risk looked ${level}, so the agent put ${g}% into growth and kept ${100 - g}% safe.`;
+}
+
 function renderFeed(cycles) {
   const feed = $("loop-feed"); feed.textContent = "";
   cycles.slice().reverse().forEach((c) => {
     const card = el("div", "cycle-card");
     const head = el("div", "cycle-head");
     head.appendChild(el("span", "cycle-ts", fmtTs(c.ts)));
-    head.appendChild(el("span", "cycle-ref", c.decisionRef));
+    head.appendChild(el("span", "cycle-mix", `${c.allocationAfter.growth}% growth`));
     card.appendChild(head);
-    card.appendChild(el("div", "cycle-reason", c.reason));
-    const al = el("div", "cycle-alloc");
-    al.appendChild(el("span", "lbl", "Rebalance"));
-    al.appendChild(el("span", "pill b", `C ${c.allocationBefore.conservative}/G ${c.allocationBefore.growth}`));
-    al.appendChild(el("span", "arr", "→"));
-    al.appendChild(el("span", "pill a", `C ${c.allocationAfter.conservative}/G ${c.allocationAfter.growth}`));
-    card.appendChild(al);
+    card.appendChild(el("div", "cycle-reason", cycleSentence(c)));
+
     const tx = el("div", "cycle-tx");
-    (c.x402Payments || []).forEach((p) => {
-      const wrap = el("span");
-      wrap.appendChild(el("span", "lbl", p.label.split(" ")[0] + " pay "));
-      wrap.appendChild(txa(p.txHash, "tx ↗"));
-      tx.appendChild(wrap);
+    const pays = c.x402Payments || [];
+    const acts = [];
+    if (pays[0]) acts.push(["Bought market data", pays[0].txHash]);
+    if (pays[1]) acts.push(["Scored the risk", pays[1].txHash]);
+    acts.push(["Rebalanced the pool", c.rebalanceTxHash]);
+    if (c.accrueTxHash) acts.push(["Added yield", c.accrueTxHash]);
+    acts.forEach(([label, hash]) => {
+      const a = el("span", "act");
+      a.appendChild(el("span", "act-lbl", label + " "));
+      a.appendChild(txa(hash, "↗"));
+      tx.appendChild(a);
     });
-    const rb = el("span");
-    rb.appendChild(el("span", "lbl", "rebalance "));
-    rb.appendChild(txa(c.rebalanceTxHash, "tx ↗"));
-    tx.appendChild(rb);
     card.appendChild(tx);
     feed.appendChild(card);
   });
 }
 function loadFeed() {
+  // The vault headline is always chain truth. The loop log only feeds the activity list.
+  refreshVaultOnChain();
   fetch("loop-log.json").then((r) => { if (!r.ok) throw 0; return r.json(); })
     .catch(() => fetch("sample-loop-log.json").then((r) => r.json()))
-    .then((data) => {
-      if (data && data.length) { renderVault(data[data.length - 1]); renderFeed(data); }
-      refreshVaultOnChain(); // chain truth overrides the headline numbers
-    })
+    .then((data) => { if (data && data.length) renderFeed(data); })
     .catch((e) => console.error("feed", e));
 }
 loadFeed();

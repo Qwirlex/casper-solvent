@@ -1,92 +1,104 @@
 [
   {
-    "ts": 1782319992085,
+    "ts": 1782382652889,
     "vaultAssets": "10000000000",
     "allocationBefore": {
       "conservative": 100,
       "growth": 0
     },
-    "feedPrice": 0.020909,
-    "riskScore": 2,
+    "feedPrice": 0.020618,
+    "riskScore": 6,
     "allocationAfter": {
-      "conservative": 2,
-      "growth": 98
+      "conservative": 6,
+      "growth": 94
     },
-    "decisionRef": "risk-2-growth-98",
-    "reason": "The extremely low risk score and stable price justify a growth allocation because the danger of loss is minimal.",
+    "decisionRef": "risk-6-growth-94",
+    "reason": "The exceptionally low risk score of six justifies a 94 percent growth allocation to safely maximize gains from the positive price momentum.",
     "x402Payments": [
       {
         "label": "data-agent feed",
         "amount": "1000000000",
-        "txHash": "2d1ba0b623771991644ff33f5803b04ee533bce25aa64788a47253f106623c4a"
+        "txHash": "7142daa7522f40191483c6d6c9fb383edc1e696d27bab68878f44ff6f3e19fda",
+        "payer": "00c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383",
+        "payTo": "003bcc0b3b98b667b6d7d95105b076f9389ccabbc4be16ab4def9be21b733797b9"
       },
       {
         "label": "risk-agent score",
         "amount": "1000000000",
-        "txHash": "b54847456d0730be01356eb3e2f8539d24c83349034f6cf39870ec73634c26de"
+        "txHash": "5d102cc3ea5bae5653dfb20bcb7369b4ad148048efad2b39f9f3a4315f1aa3d8",
+        "payer": "00c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383",
+        "payTo": "001d9254a2f50645ef7c956e667f1751b017d06a09ed259be5b8c3de9588f48148"
       }
     ],
     "feeHarvested": "50000000",
-    "rebalanceTxHash": "fca006ffc2ac638acf2db8824085cb85b14a7e1a2a4bba245b3417d670f6f207"
+    "rebalanceTxHash": "561c94c1b947bb14b7d47d274d854fdcf2e7aa8e52bf2b735db05c80cb80a1ca"
   },
   {
-    "ts": 1782320014630,
+    "ts": 1782382660710,
     "vaultAssets": "10000000000",
     "allocationBefore": {
       "conservative": 100,
       "growth": 0
     },
-    "feedPrice": 0.020723,
+    "feedPrice": 0.020841,
     "riskScore": 4,
     "allocationAfter": {
       "conservative": 4,
       "growth": 96
     },
     "decisionRef": "risk-4-growth-96",
-    "reason": "This dominant growth allocation fits because the negligible risk score and steady price signal a highly secure investment environment.",
+    "reason": "The exceptionally low risk score of four and steady positive price move justify a heavy growth allocation to safely maximize potential gains.",
     "x402Payments": [
       {
         "label": "data-agent feed",
         "amount": "1000000000",
-        "txHash": "a826dd361e16ca4b0b5d87cc9a28aafca8eb510edb3ca0781eaa1ced48b57b4c"
+        "txHash": "affbe05e7dca5d70235c201c71e9afa20b69a1937ecf4e0acbfb46db9ed9699b",
+        "payer": "00c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383",
+        "payTo": "003bcc0b3b98b667b6d7d95105b076f9389ccabbc4be16ab4def9be21b733797b9"
       },
       {
         "label": "risk-agent score",
         "amount": "1000000000",
-        "txHash": "a67b1b83ed4e279e89d61abea327df5b5b981d2ab1e158e6ef65a18ebb8e5287"
+        "txHash": "f85613127a8c1b91fb555f58a59b1bb3b2a4f8d95181ff127bf522be130e0602",
+        "payer": "00c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383",
+        "payTo": "001d9254a2f50645ef7c956e667f1751b017d06a09ed259be5b8c3de9588f48148"
       }
     ],
     "feeHarvested": "50000000",
-    "rebalanceTxHash": "1cdfcf132ffacbd7fcf69872a0cce2442f1881ddec8b380b70a7c307e568efad"
+    "rebalanceTxHash": "048b6883eb2d463eaa92bb3aab4ae63a3e0830f84aa48bd19cf6ab205f77eebc"
   },
   {
-    "ts": 1782320029825,
+    "ts": 1782382668193,
     "vaultAssets": "10000000000",
     "allocationBefore": {
       "conservative": 100,
       "growth": 0
     },
-    "feedPrice": 0.020457,
-    "riskScore": 5,
+    "feedPrice": 0.020972,
+    "riskScore": 3,
     "allocationAfter": {
-      "conservative": 5,
-      "growth": 95
+      "conservative": 3,
+      "growth": 97
     },
-    "decisionRef": "risk-5-growth-95",
-    "reason": "A 95 percent growth allocation fits because the extremely low risk score of 5 makes this minor price decline a very safe buying opportunity.",
+    "decisionRef": "risk-3-growth-97",
+    "reason": "The dominant growth allocation capitalizes on the extremely low risk score and stable price movement.",
     "x402Payments": [
       {
         "label": "data-agent feed",
         "amount": "1000000000",
-        "txHash": "d4cd5ef5f3553aba28ce0326217cc4e5ec0c81acf35452cb7e61ab468b682fa3"
+        "txHash": "63ac081c9af68c783f13f93f1704d033c9d699d3642ed3da7fa58b57ae91c746",
+        "payer": "00c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383",
+        "payTo": "003bcc0b3b98b667b6d7d95105b076f9389ccabbc4be16ab4def9be21b733797b9"
       },
       {
         "label": "risk-agent score",
         "amount": "1000000000",
-        "txHash": "867e12693d4221400bc252c9265c98c8c6adf53cfea32fc95cc1735eae64d45b"
+        "txHash": "e33eac4b50d6a0d4e18e257f16b2ddb7e0358a25f5175796d43dcefd82fbfd23",
+        "payer": "00c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383",
+        "payTo": "001d9254a2f50645ef7c956e667f1751b017d06a09ed259be5b8c3de9588f48148"
       }
     ],
     "feeHarvested": "50000000",
-    "rebalanceTxHash": "eef56a84e95ae8a143a0639c64a1cac178016e37c99165439b8f57fd3d853c7d"
+    "rebalanceTxHash": "fbb527c4c3a1aed8425c686065043c6a645a8f3ca71e63dad8d22ed5abccf34f"
   }
 ]

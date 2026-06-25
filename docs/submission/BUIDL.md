@@ -69,6 +69,16 @@ Proof transactions, all executed with no error:
 - Service payments, agent pays data agent 7cac8a9fdd57678f399802a508e617dd668cd0b63ab31554ebc4a7ad3f3c12b7
   and risk agent a6255d32cdc12577932675fd1e15180e54e59ccd1a0eae89c266da9d1078cba1
 
+Fresh proof from the real x402 handshake, one full cycle, every transaction confirmed
+with no error on chain:
+
+- x402 settlement to data agent, b71c6743a48c85c83b562827221016f3f0f912f318351ad2fb47389a40085a1f, block 8295362
+- x402 settlement to risk agent, e93b7a3334eebec65b653cc51f9772b51ac0a7ee3e63b853984a76dbbd5438ff, block 8295362
+- agent rebalance, 0af8b1ccdc49f30950d408adbd368f5c05fda20c3eb743ae7b3ee12a2ee68d47, block 8295363
+
+Each settlement here was triggered by a 402 challenge and a verified EIP-712 signature,
+the real protocol path. The live loop on the dApp shows more cycles with explorer links.
+
 ## How the criteria are met
 
 - Working smart contracts on Casper testnet. Two Odra Rust contracts deployed, a vault

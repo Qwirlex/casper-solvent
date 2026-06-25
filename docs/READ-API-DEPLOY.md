@@ -49,25 +49,44 @@ systemctl enable --now caspersolvent-api
 systemctl status caspersolvent-api --no-pager | head
 ```
 
+## Status
+
+The VPS service is already deployed and running. Cloned to /opt/caspersolvent/app,
+npm installed, and started as the systemd unit caspersolvent-api on port 4090. Verified
+with curl localhost:4090/api/vault returning real chain state. To update it later, cd
+/opt/caspersolvent/app && git pull && systemctl restart caspersolvent-api.
+
+The only step left is the Caddy route, which the agent cannot touch on the shared Caddy.
+
 ## Caddy route, user runs this, agent is blocked from the shared Caddy
 
-Add one reverse_proxy line to the caspersolvent.xyz block in /opt/revertguard/Caddyfile,
-inside the existing site block, do not touch the salescheduler or aegiscan blocks:
+The current block in /opt/revertguard/Caddyfile is:
 
 ```
 caspersolvent.xyz, www.caspersolvent.xyz {
-    handle /api/* {
-        reverse_proxy localhost:4090
-    }
-    handle {
-        root * /data/caspersolvent
-        file_server
-    }
+	root * /data/caspersolvent
+	encode gzip
+	file_server
 }
 ```
 
-Then reload Caddy the way that works on this host, recreate the caddy container so it
-rebinds the current Caddyfile:
+Replace it with this, which routes /api/* to the read API and serves the static site
+for everything else. Do not touch the salescheduler or aegiscan blocks:
+
+```
+caspersolvent.xyz, www.caspersolvent.xyz {
+	handle /api/* {
+		reverse_proxy localhost:4090
+	}
+	handle {
+		root * /data/caspersolvent
+		encode gzip
+		file_server
+	}
+}
+```
+
+Then recreate the caddy container so it rebinds the current Caddyfile:
 
 ```
 cd /opt/revertguard && docker compose up -d --force-recreate caddy

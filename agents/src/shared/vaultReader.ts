@@ -24,7 +24,10 @@ const FIELD = {
   allocGrowth: 7,
   lastDecision: 8,
   feeBps: 9,
+  totalYield: 10,
 } as const;
+
+const ONE = 1_000_000_000n; // 1 share at 9 decimals, the price scale
 
 export interface VaultReaderConfig {
   node: string; // RPC url, e.g. https://node.testnet.casper.network/rpc
@@ -34,9 +37,18 @@ export interface VaultReaderConfig {
 export interface VaultSummary {
   totalAssets: string;
   totalShares: string;
+  totalYield: string;
+  // Assets per share, scaled by 1e9. 1e9 means one to one, 1.08e9 means each share is
+  // worth 1.08 of the asset, an 8 percent gain over a one to one deposit.
+  sharePrice: string;
   allocation: { conservative: number; growth: number };
   lastDecision: string;
   feeBps: number;
+}
+
+export interface Position {
+  shares: string; // raw shares, 9 decimals
+  value: string; // current redeemable assets, raw, 9 decimals
 }
 
 let rpcId = 0;
@@ -115,17 +127,23 @@ export class VaultReader {
   async summary(): Promise<VaultSummary> {
     const srh = await this.stateRootHash();
     const seed = await this.resolveStateUref(srh);
-    const [ta, ts, ac, ag, ld, fb] = await Promise.all([
+    const [ta, ts, ty, ac, ag, ld, fb] = await Promise.all([
       this.readVar(srh, seed, FIELD.totalAssets),
       this.readVar(srh, seed, FIELD.totalShares),
+      this.readVar(srh, seed, FIELD.totalYield),
       this.readVar(srh, seed, FIELD.allocConservative),
       this.readVar(srh, seed, FIELD.allocGrowth),
       this.readVar(srh, seed, FIELD.lastDecision),
       this.readVar(srh, seed, FIELD.feeBps),
     ]);
+    const totalAssets = BigInt(decodeU256(ta));
+    const totalShares = BigInt(decodeU256(ts));
+    const sharePrice = totalShares > 0n ? (totalAssets * ONE) / totalShares : ONE;
     return {
-      totalAssets: decodeU256(ta),
-      totalShares: decodeU256(ts),
+      totalAssets: totalAssets.toString(),
+      totalShares: totalShares.toString(),
+      totalYield: decodeU256(ty),
+      sharePrice: sharePrice.toString(),
       allocation: { conservative: decodeU8(ac), growth: decodeU8(ag) },
       lastDecision: decodeString(ld),
       feeBps: decodeU32(fb),
@@ -136,10 +154,31 @@ export class VaultReader {
   async sharesOf(accountInput: string): Promise<string> {
     const srh = await this.stateRootHash();
     const seed = await this.resolveStateUref(srh);
+    return this.readSharesAt(srh, seed, accountInput);
+  }
+
+  private async readSharesAt(srh: string, seed: string, accountInput: string): Promise<string> {
     const accountHash = toAccountHash(accountInput);
     const mappingData = Buffer.concat([Buffer.from([0x00]), Buffer.from(accountHash, "hex")]);
     const bytes = await this.readItem(srh, seed, this.itemKey(FIELD.shares, mappingData));
     return decodeU256(bytes);
+  }
+
+  // A holder's shares and their current redeemable value, the assets the shares would
+  // return today including accrued yield.
+  async position(accountInput: string): Promise<Position> {
+    const srh = await this.stateRootHash();
+    const seed = await this.resolveStateUref(srh);
+    const [sharesStr, taStr, tsStr] = await Promise.all([
+      this.readSharesAt(srh, seed, accountInput),
+      this.readVar(srh, seed, FIELD.totalAssets).then(decodeU256),
+      this.readVar(srh, seed, FIELD.totalShares).then(decodeU256),
+    ]);
+    const shares = BigInt(sharesStr);
+    const totalAssets = BigInt(taStr);
+    const totalShares = BigInt(tsStr);
+    const value = totalShares > 0n ? (shares * totalAssets) / totalShares : 0n;
+    return { shares: shares.toString(), value: value.toString() };
   }
 }
 

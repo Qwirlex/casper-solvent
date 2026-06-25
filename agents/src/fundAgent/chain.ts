@@ -139,3 +139,29 @@ export async function submitRebalance(
     String(h)
   );
 }
+
+// Accrue yield into the vault, the income side for depositors. The agent holds a
+// reserve of pay token and a standing allowance to the vault, so this calls accrue
+// directly and the vault pulls the amount in, raising assets per share. Live mode only,
+// local mode returns a pseudo hash.
+export async function accrueYield(amount: string): Promise<string> {
+  if (!LIVE) return `local-accrue-${amount}`;
+  const sdk: any = await import("casper-js-sdk");
+  const { HttpHandler, RpcClient, Args, CLValue, ContractCallBuilder, PrivateKey, KeyAlgorithm } = sdk;
+  const rpc = new RpcClient(new HttpHandler(config.node));
+  const pem = await (await import("node:fs/promises")).readFile(config.agentSecretKey, "utf8");
+  const priv = PrivateKey.fromPem(pem, KeyAlgorithm.SECP256K1);
+  const packageHash = config.vaultHash.replace(/^hash-/, "");
+  const tx = new ContractCallBuilder()
+    .byPackageHash(packageHash)
+    .entryPoint("accrue")
+    .runtimeArgs(Args.fromMap({ amount: CLValue.newCLUInt256(amount) }))
+    .payment(5_000_000_000)
+    .chainName(config.chain)
+    .from(priv.publicKey)
+    .buildFor1_5();
+  tx.sign(priv);
+  const result = await rpc.putTransaction(tx);
+  const h = result.transactionHash;
+  return h?.transactionV1?.toHex?.() ?? h?.deploy?.toHex?.() ?? h?.toHex?.() ?? String(h);
+}

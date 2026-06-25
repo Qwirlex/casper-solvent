@@ -35,8 +35,8 @@ export function startWebApi(port: number = PORT): Server {
 
   app.get("/api/shares/:account", async (req, res) => {
     try {
-      const shares = await reader.sharesOf(req.params.account);
-      res.json({ account: req.params.account, shares });
+      const pos = await reader.position(req.params.account);
+      res.json({ account: req.params.account, shares: pos.shares, value: pos.value });
     } catch (e) {
       res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
     }

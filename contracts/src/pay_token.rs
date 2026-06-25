@@ -28,6 +28,20 @@ impl PayToken {
         self.token.transfer(recipient, amount)
     }
 
+    /// Approve a spender. The vault relies on this so it can pull a deposit with
+    /// transfer_from, the deposit is custodied on chain in the vault.
+    pub fn approve(&mut self, spender: &Address, amount: &U256) {
+        self.token.approve(spender, amount)
+    }
+
+    pub fn transfer_from(&mut self, owner: &Address, recipient: &Address, amount: &U256) {
+        self.token.transfer_from(owner, recipient, amount)
+    }
+
+    pub fn allowance(&self, owner: &Address, spender: &Address) -> U256 {
+        self.token.allowance(owner, spender)
+    }
+
     pub fn mint(&mut self, owner: &Address, amount: &U256) {
         self.token.raw_mint(owner, amount)
     }

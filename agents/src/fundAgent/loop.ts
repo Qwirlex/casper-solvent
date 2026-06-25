@@ -2,7 +2,7 @@ import { config } from "../shared/config.js";
 import { payAndGet, loadClientSigner, type ClientSigner } from "./x402Client.js";
 import { decideAllocation } from "./decision.js";
 import { explainDecision } from "./llm.js";
-import { readVaultState, submitRebalance, payService } from "./chain.js";
+import { readVaultState, submitRebalance, payService, accrueYield } from "./chain.js";
 import type { Feed, RiskScore, Allocation } from "../shared/types.js";
 
 export interface X402Payment {
@@ -25,6 +25,8 @@ export interface CycleRecord {
   x402Payments: X402Payment[];
   feeHarvested: string;
   rebalanceTxHash: string;
+  yieldAccrued: string;
+  accrueTxHash: string;
 }
 
 // Load the x402 client signer once. The fund agent signs every payment authorization
@@ -69,7 +71,13 @@ export async function runCycle(log: (m: string) => void = console.log): Promise<
   const rebalanceTxHash = await submitRebalance(decision.allocation, decision.decisionRef);
   log(`submitted rebalance ${rebalanceTxHash}`);
 
-  const feeHarvested = (before.totalAssets / 200n).toString(); // 0.5 percent illustrative skim
+  // Accrue yield into the vault, about 0.5 percent of assets per cycle, funded from
+  // the agent reserve. This raises assets per share on chain, the depositors earn.
+  const yieldAccrued = (before.totalAssets / 200n).toString();
+  const accrueTxHash = await accrueYield(yieldAccrued);
+  log(`accrued yield ${yieldAccrued}, tx ${accrueTxHash}`);
+
+  const feeHarvested = (before.totalAssets / 2000n).toString(); // 0.05 percent agent fee
   const price = config.x402Price;
 
   return {
@@ -99,5 +107,7 @@ export async function runCycle(log: (m: string) => void = console.log): Promise<
     ],
     feeHarvested,
     rebalanceTxHash,
+    yieldAccrued,
+    accrueTxHash,
   };
 }

@@ -88,11 +88,16 @@ code { font-family: "JetBrains Mono", monospace; font-size: 0.85em; background: 
 .alloc-legend { display: flex; gap: 18px; margin-top: 10px; font-size: 0.8rem; color: var(--muted); }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
 .sw.cons { background: #5b8cff; } .sw.grow { background: #2ee6a6; }
+.yield-row { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+.yield-row .vstat-val { color: var(--green); }
 
 /* position */
 .pos-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--line-soft); font-size: 0.92rem; }
 .pos-row:last-child { border-bottom: none; }
 .pos-row .mono { color: var(--text); }
+.pos-row.earned .mono { color: var(--muted); }
+.pos-row.earned .mono.up { color: var(--green); }
+.step-btns { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
 
 /* action card */
 .tabs { display: flex; gap: 6px; background: var(--card-2); border: 1px solid var(--line); border-radius: 11px; padding: 4px; margin-bottom: 18px; }

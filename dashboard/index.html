@@ -74,6 +74,10 @@
           </div>
           <div class="alloc-bar-rail"><div class="alloc-bar-fill" id="v-allocbar" style="width:0%"></div></div>
           <div class="alloc-legend"><span><i class="sw cons"></i> Conservative</span><span><i class="sw grow"></i> Growth</span></div>
+          <div class="yield-row">
+            <div class="vstat"><span class="vstat-label">Assets per share</span><span class="vstat-val" id="v-price">—</span></div>
+            <div class="vstat"><span class="vstat-label">Yield paid in</span><span class="vstat-val" id="v-yield">—</span></div>
+          </div>
         </div>
 
         <div class="card position-card">
@@ -81,6 +85,8 @@
           <div id="position-empty" class="muted">Connect a wallet to view and manage your position.</div>
           <div id="position-live" hidden>
             <div class="pos-row"><span>Your shares</span><span class="mono" id="p-shares">0</span></div>
+            <div class="pos-row"><span>Current value</span><span class="mono" id="p-value">—</span></div>
+            <div class="pos-row earned"><span>Earned</span><span class="mono" id="p-earned">—</span></div>
             <div class="pos-row"><span>Wallet</span><span class="mono" id="p-wallet">—</span></div>
           </div>
         </div>
@@ -99,8 +105,11 @@
               <button class="chip-btn" data-fill="deposit" data-val="100">100</button>
             </div>
             <div class="amount-hint" id="deposit-hint"></div>
-            <button id="deposit-btn" class="btn btn-accent btn-block" disabled>Connect wallet to deposit</button>
-            <p class="field-note">Deposit registers your position in the vault on chain. Your wallet signs and pays gas. On testnet the vault tracks shares; real token custody is on the roadmap.</p>
+            <div class="step-btns">
+              <button id="approve-btn" class="btn btn-block" disabled>1. Approve sUSD</button>
+              <button id="deposit-btn" class="btn btn-accent btn-block" disabled>2. Deposit</button>
+            </div>
+            <p class="field-note">The vault custodies your tokens on chain. Step one approves the vault to pull the amount, step two deposits and mints your shares. Wait for the approval to confirm, about thirty seconds, before depositing. Both steps are signed by your wallet.</p>
           </div>
           <div class="tab-body" id="tab-withdraw" hidden>
             <label class="field-label">Shares to withdraw</label>

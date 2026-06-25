@@ -379,6 +379,21 @@ document.querySelectorAll(".tab").forEach((t) => {
     ACTION_TABS.forEach((name) => { const b = $("tab-" + name); if (b) b.hidden = t.dataset.tab !== name; });
   };
 });
+
+// The hero steps are buttons that drive the actions.
+function selectActionTab(name) {
+  const t = document.querySelector(`.tab[data-tab="${name}"]`);
+  if (t) t.click();
+  const card = document.querySelector(".action-card");
+  if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+document.querySelectorAll(".step").forEach((s) => {
+  s.onclick = () => {
+    const a = s.dataset.step;
+    if (a === "connect") { if (window.csprclick && window.csprclick.signIn) window.csprclick.signIn(); }
+    else selectActionTab(a);
+  };
+});
 document.querySelectorAll(".chip-btn").forEach((c) => {
   c.onclick = () => {
     const which = c.dataset.fill === "deposit" ? "deposit" : "withdraw";

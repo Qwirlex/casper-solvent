@@ -2,6 +2,10 @@
 // submission. casper-js-sdk builds the vault deposit and withdraw transactions.
 const VAULT_PKG = "ce214af4e290a0bbac67c80040c78acd8ba42b30bce315593ae7666411854bc8";
 const PAY_TOKEN_PKG = "f7b25be95ff7c6ecb3518b2d8cd3fbad89949551661e99509f544673fe39ce59";
+// Exchange treasury, holds CSPR and sUSD, run by the agent. Buy sends CSPR here, sell
+// sends sUSD here, the worker pays the other side back.
+const TREASURY = "c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383";
+const BUY_RATE = 10; // sUSD per CSPR
 const CHAIN = "casper-test";
 const EXPLORER = "https://testnet.cspr.live/deploy/";
 const SDK_URL = "https://esm.sh/casper-js-sdk@5.0.12";
@@ -32,7 +36,23 @@ function onConnected(key) {
   a.disabled = false; a.textContent = "1. Approve sUSD";
   d.disabled = true; d.textContent = "2. Deposit (approve first)";
   w.disabled = false; w.textContent = "Withdraw shares";
+  const bb = $("buy-btn"), sb = $("sell-btn");
+  if (bb) { bb.disabled = false; bb.textContent = "Buy sUSD"; }
+  if (sb) { sb.disabled = false; sb.textContent = "Sell sUSD"; }
+  const ta = $("treasury-addr"); if (ta) ta.textContent = TREASURY.slice(0, 10) + "…";
   refreshPosition();
+  refreshWalletBalance();
+}
+
+// Wallet sUSD balance, what a buy delivers.
+async function refreshWalletBalance() {
+  if (!activeKey) return;
+  try {
+    const r = await fetch(`${API}/api/balance/${activeKey}`);
+    if (!r.ok) return;
+    const b = await r.json();
+    const el = $("w-susd"); if (el) el.textContent = fmt(b.balance) + " sUSD";
+  } catch (e) { console.warn("balance read", e); }
 }
 
 // Read the connected account's shares, current value, and earned yield from chain.
@@ -66,6 +86,9 @@ function onDisconnected() {
   a.disabled = true; d.disabled = true; w.disabled = true;
   d.textContent = "Connect wallet to deposit";
   w.textContent = "Connect wallet to withdraw";
+  const bb = $("buy-btn"), sb = $("sell-btn");
+  if (bb) { bb.disabled = true; bb.textContent = "Connect wallet to buy"; }
+  if (sb) { sb.disabled = true; sb.textContent = "Connect wallet to sell"; }
 }
 
 function wireCsprClick() {
@@ -84,8 +107,8 @@ if (window.csprclick) wireCsprClick();
 else window.addEventListener("csprclick:loaded", wireCsprClick);
 
 /* ---------- deposit / withdraw ---------- */
-function showResult(kind, text, linkUrl, linkLabel) {
-  const box = $("tx-result");
+function showResultIn(boxId, kind, text, linkUrl, linkLabel) {
+  const box = $(boxId);
   box.hidden = false;
   box.className = "tx-result " + kind;
   box.textContent = "";
@@ -96,11 +119,14 @@ function showResult(kind, text, linkUrl, linkLabel) {
     box.appendChild(a);
   }
 }
+function showResult(kind, text, linkUrl, linkLabel) { showResultIn("tx-result", kind, text, linkUrl, linkLabel); }
+function showX(kind, text, linkUrl, linkLabel) { showResultIn("x-result", kind, text, linkUrl, linkLabel); }
 
 // Build, sign and submit a contract call through CSPR.click. argsFn receives the SDK
 // CLValue and Key constructors and returns the runtime args map. Returns the captured
 // transaction hash, or null on cancel or error.
-async function sendCall(pkg, entryPoint, argsFn, btn, signMsg) {
+async function sendCall(pkg, entryPoint, argsFn, btn, signMsg, boxId) {
+  const box = boxId || "tx-result";
   const original = btn.textContent;
   btn.disabled = true; btn.textContent = "Awaiting wallet…";
   try {
@@ -114,7 +140,7 @@ async function sendCall(pkg, entryPoint, argsFn, btn, signMsg) {
       .from(PublicKey.fromHex(activeKey))
       .buildFor1_5();
     const json = tx.toJSON();
-    showResult("ok", signMsg);
+    showResultIn(box, "ok", signMsg);
     let capturedHash = null;
     const onStatus = (status, data) => {
       console.log("csprclick status", status, data);
@@ -127,14 +153,14 @@ async function sendCall(pkg, entryPoint, argsFn, btn, signMsg) {
     };
     const res = await window.csprclick.send(json, activeKey, onStatus, 150);
     console.log("csprclick send result", res);
-    if (!res || res.cancelled) { showResult("err", "Cancelled in the wallet."); return null; }
-    if (res.error) { showResult("err", "Failed: " + res.error); return null; }
+    if (!res || res.cancelled) { showResultIn(box, "err", "Cancelled in the wallet."); return null; }
+    if (res.error) { showResultIn(box, "err", "Failed: " + res.error); return null; }
     const cc = res.csprCloudTransaction || {};
     return res.transactionHash || res.deployHash || res.deploy_hash ||
       cc.deploy_hash || cc.transaction_hash || cc.hash || capturedHash || "pending";
   } catch (e) {
     console.error(e);
-    showResult("err", "Could not build or submit: " + (e && e.message ? e.message : String(e)));
+    showResultIn(box, "err", "Could not build or submit: " + (e && e.message ? e.message : String(e)));
     return null;
   } finally {
     btn.disabled = false; btn.textContent = original;
@@ -241,6 +267,85 @@ async function doWithdraw() {
 $("approve-btn").onclick = doApprove;
 $("deposit-btn").onclick = doDeposit;
 $("withdraw-btn").onclick = doWithdraw;
+
+/* ---------- exchange, buy and sell sUSD for CSPR ---------- */
+// Buy, send native CSPR to the treasury, the worker returns sUSD.
+async function doBuy() {
+  if (!activeKey) return;
+  const v = parseFloat($("buy-amount").value);
+  if (!(v > 0)) { showX("err", "Enter a CSPR amount."); return; }
+  const motes = BigInt(Math.round(v * 1e9)).toString();
+  const btn = $("buy-btn"); const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = "Awaiting wallet…";
+  try {
+    const { NativeTransferBuilder, AccountHash, PublicKey } = await sdk();
+    const tx = new NativeTransferBuilder()
+      .from(PublicKey.fromHex(activeKey))
+      .targetAccountHash(AccountHash.fromString("account-hash-" + TREASURY))
+      .amount(motes)
+      .id(Date.now() % 1000000)
+      .chainName(CHAIN)
+      .payment(100000000)
+      .build();
+    showX("ok", "Sent to your wallet, sign the CSPR transfer.");
+    const res = await window.csprclick.send(tx.toJSON(), activeKey, () => {}, 150);
+    if (!res || res.cancelled) { showX("err", "Cancelled in the wallet."); return; }
+    if (res.error) { showX("err", "Failed: " + res.error + ". You can also send CSPR yourself to the treasury address below."); return; }
+    showX("ok", `Sent ${v} CSPR. The exchange will send about ${v * BUY_RATE} sUSD to your wallet shortly.`);
+    setTimeout(refreshWalletBalance, 18000);
+    setTimeout(refreshWalletBalance, 45000);
+  } catch (e) {
+    console.error(e);
+    showX("err", "Could not submit: " + (e && e.message ? e.message : String(e)) + ". Send CSPR yourself to the treasury address below.");
+  } finally {
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+// Sell, send sUSD to the treasury, the worker returns CSPR minus the fee.
+async function doSell() {
+  if (!activeKey) return;
+  const v = parseFloat($("sell-amount").value);
+  if (!(v > 0)) { showX("err", "Enter an sUSD amount."); return; }
+  const motes = BigInt(Math.round(v * 1e9)).toString();
+  const hash = await sendCall(
+    PAY_TOKEN_PKG, "transfer",
+    (CLValue, Key) => ({ recipient: CLValue.newCLKey(Key.newKey("account-hash-" + TREASURY)), amount: CLValue.newCLUInt256(motes) }),
+    $("sell-btn"), "Sell sent to your wallet, sign the sUSD transfer.", "x-result",
+  );
+  if (hash) {
+    const cspr = ((v / BUY_RATE) * 0.9).toLocaleString("en-US", { maximumFractionDigits: 4 });
+    if (/^[0-9a-f]{60,}$/i.test(String(hash))) showX("ok", `Sold ${v} sUSD. The exchange will send about ${cspr} CSPR back shortly.`, EXPLORER + hash, "View transaction ↗");
+    else showX("ok", `Sold ${v} sUSD. The exchange will send about ${cspr} CSPR back shortly.`);
+    setTimeout(refreshWalletBalance, 18000);
+    setTimeout(refreshWalletBalance, 45000);
+  }
+}
+
+$("buy-btn").onclick = doBuy;
+$("sell-btn").onclick = doSell;
+
+// Exchange amount hints.
+function updateXHint(which) {
+  const inp = $(which + "-amount"), hint = $(which + "-hint");
+  if (!inp || !hint) return;
+  hint.textContent = "";
+  const v = parseFloat(inp.value);
+  if (!(v > 0)) return;
+  if (which === "buy") hint.textContent = `${v} CSPR → about ${v * BUY_RATE} sUSD`;
+  else hint.textContent = `${v} sUSD → about ${((v / BUY_RATE) * 0.9).toFixed(4)} CSPR after fee`;
+}
+$("buy-amount").addEventListener("input", () => updateXHint("buy"));
+$("sell-amount").addEventListener("input", () => updateXHint("sell"));
+
+document.querySelectorAll(".xtab").forEach((t) => {
+  t.onclick = () => {
+    document.querySelectorAll(".xtab").forEach((x) => x.classList.remove("active"));
+    t.classList.add("active");
+    $("xtab-buy").hidden = t.dataset.xtab !== "buy";
+    $("xtab-sell").hidden = t.dataset.xtab !== "sell";
+  };
+});
 
 document.querySelectorAll(".tab").forEach((t) => {
   t.onclick = () => {

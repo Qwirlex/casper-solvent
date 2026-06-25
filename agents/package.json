@@ -9,6 +9,7 @@
     "risk-agent": "tsx src/riskAgent/server.ts",
     "fund-agent": "tsx src/fundAgent/index.ts",
     "web-api": "tsx src/webApi/server.ts",
+    "swap-worker": "tsx src/worker/swap.ts",
     "e2e": "tsx scripts/e2e-local.ts",
     "demo": "tsx scripts/demo-run.ts"
   },

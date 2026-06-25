@@ -80,6 +80,34 @@
           </div>
         </div>
 
+        <div class="card exchange-card">
+          <div class="card-head"><h2>Get sUSD</h2><span class="rate-pill">1 CSPR = 10 sUSD</span></div>
+          <div class="tabs">
+            <button class="xtab active" data-xtab="buy">Buy</button>
+            <button class="xtab" data-xtab="sell">Sell</button>
+          </div>
+          <div class="xtab-body" id="xtab-buy">
+            <label class="field-label">Spend CSPR</label>
+            <div class="amount-row">
+              <input id="buy-amount" class="amount-input" type="number" min="0" step="0.1" placeholder="0.0" />
+            </div>
+            <div class="amount-hint" id="buy-hint"></div>
+            <button id="buy-btn" class="btn btn-accent btn-block" disabled>Connect wallet to buy</button>
+            <p class="field-note">You send CSPR to the exchange and get sUSD back in your wallet at 1 CSPR to 10 sUSD. The exchange is run by the agent. If the button does not submit, send CSPR yourself to <span class="mono" id="treasury-addr">…</span>.</p>
+          </div>
+          <div class="xtab-body" id="xtab-sell" hidden>
+            <label class="field-label">Sell sUSD</label>
+            <div class="amount-row">
+              <input id="sell-amount" class="amount-input" type="number" min="0" step="0.1" placeholder="0.0" />
+            </div>
+            <div class="amount-hint" id="sell-hint"></div>
+            <button id="sell-btn" class="btn btn-block" disabled>Connect wallet to sell</button>
+            <p class="field-note">You send sUSD to the exchange and get CSPR back, minus a ten percent fee.</p>
+          </div>
+          <div class="pos-row" style="margin-top:6px"><span>Wallet sUSD</span><span class="mono" id="w-susd">—</span></div>
+          <div id="x-result" class="tx-result" hidden></div>
+        </div>
+
         <div class="card position-card">
           <div class="card-head"><h2>Your position</h2></div>
           <div id="position-empty" class="muted">Connect a wallet to view and manage your position.</div>

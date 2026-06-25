@@ -103,6 +103,9 @@ code { font-family: "JetBrains Mono", monospace; font-size: 0.85em; background: 
 .tabs { display: flex; gap: 6px; background: var(--card-2); border: 1px solid var(--line); border-radius: 11px; padding: 4px; margin-bottom: 18px; }
 .tab { flex: 1; padding: 9px; border: none; background: none; color: var(--muted); font-weight: 600; font-size: 0.9rem; border-radius: 8px; cursor: pointer; font-family: inherit; transition: background .15s, color .15s; }
 .tab.active { background: var(--card); color: var(--text); }
+.xtab { flex: 1; padding: 8px; border: none; background: none; color: var(--muted); font-weight: 600; font-size: 0.88rem; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.xtab.active { background: var(--card); color: var(--text); }
+.rate-pill { font-size: 0.76rem; font-weight: 600; background: var(--card-2); border: 1px solid var(--line); color: var(--green); border-radius: 16px; padding: 3px 10px; }
 .field-label { font-size: 0.78rem; color: var(--faint); text-transform: uppercase; letter-spacing: 0.6px; }
 .amount-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .amount-input { flex: 1; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 13px 14px; color: var(--text); font-size: 1.15rem; font-family: "JetBrains Mono"; }

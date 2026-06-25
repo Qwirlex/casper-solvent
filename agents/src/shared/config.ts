@@ -22,6 +22,13 @@ export const config = {
   riskAgentUrl: process.env.RISK_AGENT_URL ?? "http://localhost:4002",
   dataAgentAccount: process.env.DATA_AGENT_ACCOUNT ?? "",
   riskAgentAccount: process.env.RISK_AGENT_ACCOUNT ?? "",
+  // Treasury account, holds CSPR and sUSD for the swap. Defaults to the agent account.
+  treasuryAccount:
+    process.env.TREASURY_ACCOUNT ??
+    "c9c6b8f622cbeee77fca9e6e5d3f739f30e4116a1f5c41f6ccf2e0ddedb84383",
+  // Swap rate, sUSD per 1 CSPR, and the sell fee in basis points.
+  buyRate: Number(process.env.BUY_RATE ?? 10),
+  sellFeeBps: Number(process.env.SELL_FEE_BPS ?? 1000), // 10 percent
   // x402 fee per service call, atomic units of the pay token at 9 decimals, 1 sUSD.
   x402Price: process.env.X402_PRICE ?? "1000000000",
   // EIP-712 token domain identity, must agree across the client and the server.

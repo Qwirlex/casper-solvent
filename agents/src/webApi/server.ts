@@ -61,6 +61,30 @@ export function startWebApi(port: number = PORT): Server {
   });
   app.get("/api/depositors", (_req, res) => res.json(readDepositors()));
 
+  // Wallet sUSD balance, so the dApp can show what a buy delivered. Read through
+  // CSPR.cloud token ownership, server side key.
+  app.get("/api/balance/:account", async (req, res) => {
+    try {
+      const { toAccountHash } = await import("../shared/vaultReader.js");
+      const hash = toAccountHash(req.params.account);
+      const token = config.payTokenHash.replace(/^hash-/, "");
+      let balance = "0";
+      if (config.csprCloudKey) {
+        const r = await fetch(`https://api.testnet.cspr.cloud/accounts/${hash}/ft-token-ownership?page_size=50`, {
+          headers: { authorization: config.csprCloudKey },
+        });
+        if (r.ok) {
+          const body: any = await r.json();
+          const row = (body.data ?? []).find((x: any) => x.contract_package_hash === token);
+          if (row) balance = String(row.balance);
+        }
+      }
+      res.json({ account: req.params.account, balance });
+    } catch (e) {
+      res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   app.get("/api/vault", async (_req, res) => {
     try {
       res.json(await reader.summary());
